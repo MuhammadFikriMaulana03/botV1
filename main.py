@@ -33,7 +33,7 @@ executor = ThreadPoolExecutor(max_workers=5)
 
 warnings.filterwarnings("ignore")
 
-TOKEN = os.getenv("8678632958:AAG4jgSRVRdKdOKMrOHKxP2V_zBC1s2yOMc")
+TOKEN = "8746301929:AAGJmL-MOMNqT1VG5Jmv5GZ_d6cFuOPba4s"
 
 
 CACHE = {}
@@ -1024,7 +1024,7 @@ def main():
     app.add_handler(CommandHandler("snr", snr))
     
 
-    print("🚀 BOT V41 + BSJP PRO READY")
+    print("🚀 Bot KokoKiki Ready")
     app.run_polling()
 
 if __name__ == "__main__":
