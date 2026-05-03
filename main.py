@@ -257,7 +257,7 @@ def snd_chart(symbol):
     # =========================
     # H4 SIMULATION
     # =========================
-    df_h4 = df.resample("4H").agg({
+    df_h4 = df.resample("4h").agg({
         "Open": "first",
         "High": "max",
         "Low": "min",
