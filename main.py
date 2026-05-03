@@ -16,6 +16,8 @@ import io
 import asyncio
 import logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+import os
+os.system("pip install yfinance pandas numpy ta python-telegram-bot Pillow matplotlib requests")
 
 
 from ta.trend import SMAIndicator, MACD
