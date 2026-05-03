@@ -33,7 +33,7 @@ executor = ThreadPoolExecutor(max_workers=5)
 
 warnings.filterwarnings("ignore")
 
-TOKEN = os.getenv("8746301929:AAGJmL-MOMNqT1VG5Jmv5GZ_d6cFuOPba4s")
+TOKEN = "8746301929:AAGJmL-MOMNqT1VG5Jmv5GZ_d6cFuOPba4s"
 
 
 CACHE = {}
