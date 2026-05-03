@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import io
 import asyncio
+import pytz
 import logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
@@ -27,6 +28,7 @@ from ta.volatility import AverageTrueRange, BollingerBands
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from concurrent.futures import ThreadPoolExecutor
+from datetime import time
 
 executor = ThreadPoolExecutor(max_workers=5)
 
@@ -34,6 +36,7 @@ executor = ThreadPoolExecutor(max_workers=5)
 warnings.filterwarnings("ignore")
 
 TOKEN = "8746301929:AAGJmL-MOMNqT1VG5Jmv5GZ_d6cFuOPba4s"
+CHAT_ID = 1384126146 # ganti dengan punyamu
 
 
 CACHE = {}
@@ -834,6 +837,26 @@ async def sndc(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_photo(photo=file)
+
+async def start(update, context):
+    await update.message.reply_text("Bot aktif!")
+    print("CHAT ID:", update.effective_chat.id)
+
+CHAT_ID = 123456789  # ganti dengan punyamu
+
+async def auto_bsjp(context):
+    try:
+        result = bsjp_scan()
+        await context.bot.send_message(chat_id=CHAT_ID, text=result)
+    except Exception as e:
+        await context.bot.send_message(chat_id=CHAT_ID, text=f"Error BSJP: {e}")
+
+async def auto_daily(context):
+    try:
+        result = daily_scan()  # pastikan fungsi ini ada
+        await context.bot.send_message(chat_id=CHAT_ID, text=result)
+    except Exception as e:
+        await context.bot.send_message(chat_id=CHAT_ID, text=f"Error Daily: {e}")
     
 
 # =========================
@@ -1011,6 +1034,28 @@ def daily_report_ihsg():
 # =========================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
+
+    # =========================
+    # ⏰ TIMEZONE INDONESIA
+    # =========================
+    tz = pytz.timezone("Asia/Jakarta")
+
+     # =========================
+    # 🔔 JOB SCHEDULER
+    # =========================
+    job_queue = app.job_queue
+
+    # BSJP jam 15:00 WIB
+    job_queue.run_daily(
+        auto_bsjp,
+        time=time(hour=15, minute=0, tzinfo=tz)
+    )
+
+    # DAILY jam 17:00 WIB
+    job_queue.run_daily(
+        auto_daily,
+        time=time(hour=17, minute=0, tzinfo=tz)
+    )
 
     app.add_handler(CommandHandler("menu", menu))
     app.add_handler(CommandHandler("scan", scan))
