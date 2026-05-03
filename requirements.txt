@@ -5,4 +5,5 @@ ta
 python-telegram-bot
 Pillow
 matplotlib
+mplfinance
 requests
