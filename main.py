@@ -319,30 +319,21 @@ def snd_chart(symbol):
     # =========================
     # LABEL BOX (BIAR JELAS)
     # =========================
-# =========================
-# LABEL BOX (BIAR JELAS)
-# =========================
-# =========================
-# LABEL BOX (BIAR JELAS)
-# =========================
-def label(y, text, color, x_offset=0):
-    ax.text(
-        len(chart_df) - (25 - x_offset),  # 🔥 lebih ke tengah & gak numpuk
-        y,
-        f" {text} ",
-        fontsize=9,
-        color='white',
-        va='center',
-        ha='left',
-        bbox=dict(facecolor=color, edgecolor='none', boxstyle='round,pad=0.3')
-    )
+    def label(y, text, color):
+        ax.text(
+            len(chart_df)-5, y,
+            f" {text} ",
+            fontsize=10,
+            color='white',
+            va='center',
+            bbox=dict(facecolor=color, edgecolor='none', boxstyle='round,pad=0.3')
+        )
 
-    # 🔥 panggil labelnya (INI YANG KEMARIN KE-SKIP)
-    label(h4_res, f"RES {h4_res:.0f}", "red", 0)
-    label(h4_sup, f"SUP {h4_sup:.0f}", "green", 3)
-    label(entry, f"ENTRY {entry:.0f}", "blue", 6)
-    label(tp2, f"TP {tp2:.0f}", "gold", 9)
-    label(sl, f"SL {sl:.0f}", "black", 12)
+    label(h4_res, f"RES {h4_res:.0f}", "red")
+    label(h4_sup, f"SUP {h4_sup:.0f}", "green")
+    label(entry, f"ENTRY {entry:.0f}", "blue")
+    label(tp2, f"TP {tp2:.0f}", "gold")
+    label(sl, f"SL {sl:.0f}", "black")
 
     # =========================
     # INFO BOX (LEBIH CLEAN)
