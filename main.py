@@ -729,6 +729,45 @@ Score: {r['score']} | Z-Vol: {r['vol_z']:.2f}
 ━━━━━━━━━━━━━━━━━━
 """
 
+# ============
+# RSI Detektor
+# ============
+def rsi_scan():
+    results = []
+
+    for symbol in WATCHLIST:
+        df = get_cached(symbol)
+        if df is None:
+            continue
+
+        close = S(df["Close"])
+        rsi = RSIIndicator(close, window=14).rsi().iloc[-1]
+
+        if rsi <= 30:
+            price = close.iloc[-1]
+
+            # scoring (semakin kecil RSI makin menarik)
+            score = 30 - rsi
+
+            results.append((symbol, price, rsi, score))
+
+    if not results:
+        return "❌ Tidak ada saham RSI <= 30"
+
+    # sort paling oversold
+    results.sort(key=lambda x: x[3], reverse=True)
+
+    text = "📉 RSI OVERSOLD SCAN (<=30)\n━━━━━━━━━━━━━━\n\n"
+
+    for r in results[:10]:
+        text += f"""📊 {r[0]}.JK
+💰 Price: {r[1]:.2f}
+📉 RSI: {r[2]:.2f}
+
+"""
+
+    return text
+
     return text
 
 # =========================
@@ -820,6 +859,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /snr Kode Emiten
 /snd Kode Emiten
 /sndc Kode Emiten
+/rsi 🔥 (RSI Oversold)
 """)
 
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -878,6 +918,13 @@ async def sndc(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_photo(photo=file)
+
+async def rsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🔎 Scanning RSI Oversold...")
+
+    result = await asyncio.to_thread(rsi_scan)
+
+    await update.message.reply_text(result)
 
 
     
@@ -1068,6 +1115,7 @@ def main():
     app.add_handler(CommandHandler("snd", snd))
     app.add_handler(CommandHandler("sndc", sndc))
     app.add_handler(CommandHandler("snr", snr))
+    app.add_handler(CommandHandler("rsi", rsi))
     
 
     print("🚀 Bot KokoKiki Ready")
