@@ -337,12 +337,12 @@ def label(y, text, color, x_offset=0):
         bbox=dict(facecolor=color, edgecolor='none', boxstyle='round,pad=0.3')
     )
 
-# 🔥 panggil labelnya (INI YANG KEMARIN KE-SKIP)
-label(h4_res, f"RES {h4_res:.0f}", "red", 0)
-label(h4_sup, f"SUP {h4_sup:.0f}", "green", 3)
-label(entry, f"ENTRY {entry:.0f}", "blue", 6)
-label(tp2, f"TP {tp2:.0f}", "gold", 9)
-label(sl, f"SL {sl:.0f}", "black", 12)
+    # 🔥 panggil labelnya (INI YANG KEMARIN KE-SKIP)
+    label(h4_res, f"RES {h4_res:.0f}", "red", 0)
+    label(h4_sup, f"SUP {h4_sup:.0f}", "green", 3)
+    label(entry, f"ENTRY {entry:.0f}", "blue", 6)
+    label(tp2, f"TP {tp2:.0f}", "gold", 9)
+    label(sl, f"SL {sl:.0f}", "black", 12)
 
     # =========================
     # INFO BOX (LEBIH CLEAN)
