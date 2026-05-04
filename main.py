@@ -19,6 +19,7 @@ import logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
 os.system("pip install --no-cache-dir mplfinance matplotlib")
+os.system("pip install --no-cache-dir python-telegram-bot[job-queue]")
 
 
 from ta.trend import SMAIndicator, MACD
@@ -848,7 +849,7 @@ async def bsjp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
 async def snd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = await asyncio.to_thread(snd_scan)
-    await update.message.reply_text(snd_scan())
+    await update.message.reply_text(result())
 
 async def snr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -1089,13 +1090,13 @@ def main():
     job_queue = app.job_queue
 
     # BSJP jam 15:00 WIB
-    job_queue.run_report_ihsg(
+    job_queue.run_daily(
         auto_bsjp,
         time=time(hour=15, minute=0, tzinfo=tz)
     )
 
     # DAILY jam 17:00 WIB
-    job_queue.run_report_ihsg(
+    job_queue.run_daily(
         auto_daily,
         time=time(hour=17, minute=0, tzinfo=tz)
     )
