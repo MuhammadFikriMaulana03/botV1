@@ -1068,7 +1068,6 @@ def main():
     app.add_handler(CommandHandler("snd", snd))
     app.add_handler(CommandHandler("sndc", sndc))
     app.add_handler(CommandHandler("snr", snr))
-    app.add_error_handler(error_handler)
     
 
     print("🚀 Bot KokoKiki Ready")
