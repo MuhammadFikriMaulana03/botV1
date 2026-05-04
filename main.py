@@ -1089,13 +1089,13 @@ def main():
     job_queue = app.job_queue
 
     # BSJP jam 15:00 WIB
-    job_queue.run_daily(
+    job_queue.run_report_ihsg(
         auto_bsjp,
         time=time(hour=15, minute=0, tzinfo=tz)
     )
 
     # DAILY jam 17:00 WIB
-    job_queue.run_daily(
+    job_queue.run_report_ihsg(
         auto_daily,
         time=time(hour=17, minute=0, tzinfo=tz)
     )
