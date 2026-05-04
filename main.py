@@ -374,7 +374,6 @@ def snd_chart(symbol):
     bbox=dict(boxstyle='round', facecolor='black', alpha=0.7),
     color='white'
     )
-    ax.set_title(f"{symbol} | SND Signal | {signal}")
 
     buf = io.BytesIO()
     plt.tight_layout()
