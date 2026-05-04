@@ -11,6 +11,8 @@ matplotlib.use('Agg')  # 🔥 WAJIB
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import io
+import time
+import datetime
 import asyncio
 import pytz
 import logging
