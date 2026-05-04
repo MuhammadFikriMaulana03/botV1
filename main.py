@@ -1058,11 +1058,6 @@ def daily_report_ihsg():
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # =========================
-    # ⏰ TIMEZONE INDONESIA
-    # =========================
-    tz = pytz.timezone("Asia/Jakarta")
-
 
     app.add_handler(CommandHandler("menu", menu))
     app.add_handler(CommandHandler("scan", scan))
