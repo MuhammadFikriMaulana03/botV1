@@ -743,21 +743,21 @@ def rsi_scan():
         close = S(df["Close"])
         rsi = RSIIndicator(close, window=14).rsi().iloc[-1]
 
-        if rsi <= 30:
+        if rsi <= 55:
             price = close.iloc[-1]
 
             # scoring (semakin kecil RSI makin menarik)
-            score = 30 - rsi
+            score = 55 - rsi
 
             results.append((symbol, price, rsi, score))
 
     if not results:
-        return "❌ Tidak ada saham RSI <= 30"
+        return "❌ Tidak ada saham RSI <= 55"
 
     # sort paling oversold
     results.sort(key=lambda x: x[3], reverse=True)
 
-    text = "📉 RSI OVERSOLD SCAN (<=30)\n━━━━━━━━━━━━━━\n\n"
+    text = "📉 RSI OVERSOLD SCAN (<=55)\n━━━━━━━━━━━━━━\n\n"
 
     for r in results[:10]:
         text += f"""📊 {r[0]}.JK
