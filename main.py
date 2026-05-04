@@ -243,9 +243,6 @@ def snd_chart(symbol):
     if df is None:
         return None
 
-    # =========================
-    # BASE TF (D1)
-    # =========================
     data = df.copy()
     chart_df = data.tail(80)
 
@@ -270,12 +267,8 @@ def snd_chart(symbol):
 
     h4_sup = df_h4["Low"].rolling(10).min().iloc[-1]
     h4_res = df_h4["High"].rolling(10).max().iloc[-1]
-
     h4_mid = (h4_sup + h4_res) / 2
 
-    # =========================
-    # ENTRY DECISION ENGINE
-    # =========================
     entry = price
 
     if price > h4_mid:
@@ -283,99 +276,96 @@ def snd_chart(symbol):
         sl = h4_sup
         tp1 = h4_mid
         tp2 = h4_res
-        reason = "Harga di atas mid → momentum naik (trend continuation)"
+        reason = "Momentum naik (di atas mid)"
 
-    elif price < h4_mid:
+    else:
         signal = "SELL 🔴"
         sl = h4_res
         tp1 = h4_mid
         tp2 = h4_sup
-        reason = "Harga di bawah mid → tekanan jual dominan"
-
-    # ENTRY TIMING
-    if abs(price - h4_sup) / price < 0.02:
-        decision = "🔥 ENTRY SEKARANG (dekat support)"
-    elif abs(price - h4_res) / price < 0.02:
-        decision = "⚠️ JANGAN ENTRY (dekat resistance)"
-    else:
-        decision = "⏳ TUNGGU KONFIRMASI"
+        reason = "Tekanan jual (di bawah mid)"
 
     # =========================
-    # PLOT BASE
+    # PLOT
     # =========================
     fig, axes = mpf.plot(
-    chart_df,
-    type='candle',
-    style='charles',
-    volume=True,
-    returnfig=True,
-    figsize=(12,6)
+        chart_df,
+        type='candle',
+        style='yahoo',
+        volume=True,
+        returnfig=True,
+        figsize=(12,7)
     )
 
     ax = axes[0]
 
     # =========================
-    # ZONE BOX (LIKE TRADINGVIEW)
+    # ZONE (LEBIH HALUS)
     # =========================
-
-    # SUPPORT ZONE
-    ax.axhspan(h4_sup*0.995, h4_sup*1.005, color='green', alpha=0.2)
-
-    # RESISTANCE ZONE
-    ax.axhspan(h4_res*0.995, h4_res*1.005, color='red', alpha=0.2)
-
-    # ENTRY ZONE
-    ax.axhspan(h4_mid*0.995, h4_mid*1.005, color='blue', alpha=0.15)
+    ax.axhspan(h4_sup*0.995, h4_sup*1.005, color='lime', alpha=0.15)
+    ax.axhspan(h4_res*0.995, h4_res*1.005, color='red', alpha=0.15)
+    ax.axhspan(h4_mid*0.995, h4_mid*1.005, color='dodgerblue', alpha=0.10)
 
     # =========================
-    # LINES
+    # GARIS UTAMA (TEBAL)
     # =========================
-    ax.axhline(tp1, linestyle='--', color='orange', linewidth=1)
-    ax.axhline(tp2, linestyle='--', color='gold', linewidth=1)
-    ax.axhline(sl, linestyle='--', color='black', linewidth=1)
+    ax.axhline(h4_sup, color='lime', linewidth=2)
+    ax.axhline(h4_res, color='red', linewidth=2)
+    ax.axhline(h4_mid, color='blue', linestyle='--', linewidth=1.5)
+
+    ax.axhline(tp2, color='gold', linestyle='--', linewidth=2)
+    ax.axhline(sl, color='black', linestyle='--', linewidth=2)
 
     # =========================
-    # TEXT LABELS
+    # LABEL BOX (BIAR JELAS)
     # =========================
-    # =========================
-    # LABEL ANGKA REAL (SUP / RES / ENTRY)
-    # =========================
-    x_pos = len(chart_df) * 0.7
+    def label(y, text, color):
+        ax.text(
+            len(chart_df)-5, y,
+            f" {text} ",
+            fontsize=10,
+            color='white',
+            va='center',
+            bbox=dict(facecolor=color, edgecolor='none', boxstyle='round,pad=0.3')
+        )
 
-    ax.text(x_pos, h4_res, f"RES {h4_res:.0f}", color='red', fontsize=9)
-    ax.text(x_pos, h4_sup, f"SUP {h4_sup:.0f}", color='green', fontsize=9)
-    ax.text(x_pos, entry, f"ENTRY {entry:.0f}", color='blue', fontsize=9)
+    label(h4_res, f"RES {h4_res:.0f}", "red")
+    label(h4_sup, f"SUP {h4_sup:.0f}", "green")
+    label(entry, f"ENTRY {entry:.0f}", "blue")
+    label(tp2, f"TP {tp2:.0f}", "gold")
+    label(sl, f"SL {sl:.0f}", "black")
 
-    # TP & SL
-    ax.text(x_pos, tp2, f"TP {tp2:.0f}", color='gold', fontsize=9)
-    ax.text(x_pos, sl, f"SL {sl:.0f}", color='black', fontsize=9)
     # =========================
-    # INFO BOX (SIGNAL + ALASAN)
+    # INFO BOX (LEBIH CLEAN)
     # =========================
-    info_text = f"""
-    {signal}
-    {decision}
+    info = f"""
+{signal}
+Entry : {entry:.0f}
+TP    : {tp2:.0f}
+SL    : {sl:.0f}
 
-    Entry: {entry:.0f}
-    SL: {sl:.0f}
-    TP: {tp2:.0f}
-
-    {reason}    
-    """
+{reason}
+"""
 
     ax.text(
-    0.02, 0.95,
-    info_text,
-    transform=ax.transAxes,
-    fontsize=9,
-    verticalalignment='top',
-    bbox=dict(boxstyle='round', facecolor='black', alpha=0.7),
-    color='white'
+        0.01, 0.99,
+        info,
+        transform=ax.transAxes,
+        fontsize=10,
+        verticalalignment='top',
+        bbox=dict(facecolor='black', alpha=0.8, boxstyle='round'),
+        color='white'
     )
+
+    # =========================
+    # STYLE FINAL
+    # =========================
+    ax.set_title(f"{symbol}.JK - SND Smart Money Chart", fontsize=14)
+    ax.grid(True, alpha=0.2)
 
     buf = io.BytesIO()
     plt.tight_layout()
-    plt.savefig(buf, format='png')
+    plt.savefig(buf, format='png', dpi=120)
     plt.close()
 
     buf.seek(0)
