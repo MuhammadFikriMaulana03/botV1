@@ -332,9 +332,6 @@ def snd_chart(symbol):
 
     label(h4_res, f"RES {h4_res:.0f}", "red")
     label(h4_sup, f"SUP {h4_sup:.0f}", "green")
-    label(entry, f"ENTRY {entry:.0f}", "blue")
-    label(tp2, f"TP {tp2:.0f}", "gold")
-    label(sl, f"SL {sl:.0f}", "black")
 
     # =========================
     # INFO BOX (LEBIH CLEAN)
