@@ -319,21 +319,24 @@ def snd_chart(symbol):
     # =========================
     # LABEL BOX (BIAR JELAS)
     # =========================
-    def label(y, text, color):
-        ax.text(
-            len(chart_df)-5, y,
-            f" {text} ",
-            fontsize=10,
-            color='white',
-            va='center',
-            bbox=dict(facecolor=color, edgecolor='none', boxstyle='round,pad=0.3')
-        )
+    def label(y, text, color, x_offset=0):
+    ax.text(
+        len(chart_df) - (15 - x_offset),  # 🔥 geser ke kiri + beda beda posisi
+        y,
+        f" {text} ",
+        fontsize=10,
+        color='white',
+        va='center',
+        ha='left',
+        bbox=dict(facecolor=color, edgecolor='none', boxstyle='round,pad=0.3')
+    )
 
-    label(h4_res, f"RES {h4_res:.0f}", "red")
-    label(h4_sup, f"SUP {h4_sup:.0f}", "green")
-    label(entry, f"ENTRY {entry:.0f}", "blue")
-    label(tp2, f"TP {tp2:.0f}", "gold")
-    label(sl, f"SL {sl:.0f}", "black")
+    # 🔥 kasih offset beda biar nyebar
+    label(h4_res, f"RES {h4_res:.0f}", "red", 0)
+    label(h4_sup, f"SUP {h4_sup:.0f}", "green", 2)
+    label(entry, f"ENTRY {entry:.0f}", "blue", 4)
+    label(tp2, f"TP {tp2:.0f}", "gold", 6)
+    label(sl, f"SL {sl:.0f}", "black", 8)
 
     # =========================
     # INFO BOX (LEBIH CLEAN)
