@@ -5,8 +5,6 @@ import warnings
 import requests
 import urllib.parse
 import xml.etree.ElementTree as ET
-import datetime
-import time
 import mplfinance as mpf
 import matplotlib
 matplotlib.use('Agg')  # 🔥 WAJIB
@@ -29,7 +27,7 @@ from ta.volatility import AverageTrueRange, BollingerBands
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from concurrent.futures import ThreadPoolExecutor
-from datetime import time
+from datetime import time as dt_time
 
 executor = ThreadPoolExecutor(max_workers=5)
 
@@ -901,6 +899,10 @@ async def auto_daily(context):
         await context.bot.send_message(chat_id=CHAT_ID, text=result)
     except Exception as e:
         await context.bot.send_message(chat_id=CHAT_ID, text=f"Error Daily: {e}")
+async def error_handler(update, context):
+    print(f"ERROR: {context.error}")
+
+app.add_error_handler(error_handler)
     
 
 # =========================
@@ -1092,13 +1094,14 @@ def main():
     # BSJP jam 15:00 WIB
     job_queue.run_daily(
         auto_bsjp,
-        time=time(hour=15, minute=0, tzinfo=tz)
+        time=dt_time(hour=15, minute=0, tzinfo=tz)
+)
     )
 
     # DAILY jam 17:00 WIB
     job_queue.run_daily(
         auto_daily,
-        time=time(hour=17, minute=0, tzinfo=tz)
+        time=dt_time(hour=17, minute=0, tzinfo=tz)
     )
 
     app.add_handler(CommandHandler("menu", menu))
