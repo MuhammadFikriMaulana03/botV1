@@ -276,31 +276,31 @@ def snd_chart(symbol):
     h4_mid = (h4_sup + h4_res) / 2
 
     # =========================
-# ENTRY DECISION ENGINE
-# =========================
-entry = price
+    # ENTRY DECISION ENGINE
+    # =========================
+    entry = price
 
-if price > h4_mid:
-    signal = "BUY 🟢"
-    sl = h4_sup
-    tp1 = h4_mid
-    tp2 = h4_res
-    reason = "Harga di atas mid → momentum naik (trend continuation)"
+    if price > h4_mid:
+        signal = "BUY 🟢"
+        sl = h4_sup
+        tp1 = h4_mid
+        tp2 = h4_res
+        reason = "Harga di atas mid → momentum naik (trend continuation)"
 
-elif price < h4_mid:
-    signal = "SELL 🔴"
-    sl = h4_res
-    tp1 = h4_mid
-    tp2 = h4_sup
-    reason = "Harga di bawah mid → tekanan jual dominan"
+    elif price < h4_mid:
+        signal = "SELL 🔴"
+        sl = h4_res
+        tp1 = h4_mid
+        tp2 = h4_sup
+        reason = "Harga di bawah mid → tekanan jual dominan"
 
-# ENTRY TIMING
-if abs(price - h4_sup) / price < 0.02:
-    decision = "🔥 ENTRY SEKARANG (dekat support)"
-elif abs(price - h4_res) / price < 0.02:
-    decision = "⚠️ JANGAN ENTRY (dekat resistance)"
-else:
-    decision = "⏳ TUNGGU KONFIRMASI"
+    # ENTRY TIMING
+    if abs(price - h4_sup) / price < 0.02:
+        decision = "🔥 ENTRY SEKARANG (dekat support)"
+    elif abs(price - h4_res) / price < 0.02:
+        decision = "⚠️ JANGAN ENTRY (dekat resistance)"
+    else:
+        decision = "⏳ TUNGGU KONFIRMASI"
 
     # =========================
     # PLOT BASE
@@ -340,32 +340,32 @@ else:
     # TEXT LABELS
     # =========================
     # =========================
-# LABEL ANGKA REAL (SUP / RES / ENTRY)
-# =========================
-x_pos = len(chart_df) * 0.7
+    # LABEL ANGKA REAL (SUP / RES / ENTRY)
+    # =========================
+    x_pos = len(chart_df) * 0.7
 
-ax.text(x_pos, h4_res, f"RES {h4_res:.0f}", color='red', fontsize=9)
-ax.text(x_pos, h4_sup, f"SUP {h4_sup:.0f}", color='green', fontsize=9)
-ax.text(x_pos, entry, f"ENTRY {entry:.0f}", color='blue', fontsize=9)
+    ax.text(x_pos, h4_res, f"RES {h4_res:.0f}", color='red', fontsize=9)
+    ax.text(x_pos, h4_sup, f"SUP {h4_sup:.0f}", color='green', fontsize=9)
+    ax.text(x_pos, entry, f"ENTRY {entry:.0f}", color='blue', fontsize=9)
 
-# TP & SL
-ax.text(x_pos, tp2, f"TP {tp2:.0f}", color='gold', fontsize=9)
-ax.text(x_pos, sl, f"SL {sl:.0f}", color='black', fontsize=9)
-# =========================
-# INFO BOX (SIGNAL + ALASAN)
-# =========================
-info_text = f"""
-{signal}
-{decision}
+    # TP & SL
+    ax.text(x_pos, tp2, f"TP {tp2:.0f}", color='gold', fontsize=9)
+    ax.text(x_pos, sl, f"SL {sl:.0f}", color='black', fontsize=9)
+    # =========================
+    # INFO BOX (SIGNAL + ALASAN)
+    # =========================
+    info_text = f"""
+    {signal}
+    {decision}
 
-Entry: {entry:.0f}
-SL: {sl:.0f}
-TP: {tp2:.0f}
+    Entry: {entry:.0f}
+    SL: {sl:.0f}
+    TP: {tp2:.0f}
 
-{reason}
-"""
+    {reason}    
+    """
 
-ax.text(
+    ax.text(
     0.02, 0.95,
     info_text,
     transform=ax.transAxes,
@@ -373,7 +373,7 @@ ax.text(
     verticalalignment='top',
     bbox=dict(boxstyle='round', facecolor='black', alpha=0.7),
     color='white'
-)
+    )
     ax.set_title(f"{symbol} | SND Signal | {signal}")
 
     buf = io.BytesIO()
