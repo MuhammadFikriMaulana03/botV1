@@ -1095,8 +1095,8 @@ def main():
     job_queue.run_daily(
         auto_bsjp,
         time=dt_time(hour=15, minute=0, tzinfo=tz)
-)
     )
+    
 
     # DAILY jam 17:00 WIB
     job_queue.run_daily(
