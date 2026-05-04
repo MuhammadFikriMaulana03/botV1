@@ -319,9 +319,10 @@ def snd_chart(symbol):
     # =========================
     # LABEL BOX (BIAR JELAS)
     # =========================
-    def label(y, text, color):
+    def label(y, text, color, x_offset=0):
         ax.text(
-            len(chart_df)-5, y,
+            len(chart_df) - (15 - x_offset),  # 🔥 geser ke kiri + beda beda posisi
+            y,
             f" {text} ",
             fontsize=10,
             color='white',
