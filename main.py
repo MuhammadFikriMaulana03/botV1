@@ -716,6 +716,7 @@ Score: {r['score']} | Z-Vol: {r['vol_z']:.2f}
 
 ━━━━━━━━━━━━━━━━━━
 """
+        return text
 
 # ============
 # RSI Detektor
