@@ -545,57 +545,39 @@ def get_news(symbol=None):
 # =========================
 # 🧠 BROKER SUMMARY ANALYZER
 # =========================
-# =========================
-# 🧠 BROKER SUMMARY ANALYZER
-# =========================
 def analyze_broker_summary(image_path):
 
     try:
         img = cv2.imread(image_path)
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray = cv2.resize(gray, None, fx=3, fy=3)
 
+        # sharpen OCR
         gray = cv2.GaussianBlur(gray, (3,3), 0)
 
-        _, thresh = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY)
-        text = pytesseract.image_to_string(
-        thresh,
-        config='--psm 6'    
-        )
+        text = pytesseract.image_to_string(gray)
 
         # =========================
         # PARSE BROKER
         # =========================
-        # =========================
-# PARSE BROKER
-# =========================
-brokers = []
+        brokers = []
 
-lines = text.splitlines()
+        lines = text.splitlines()
 
-pattern = r'([A-Z]{2})\s+([\d\.]+)(B|M)'
+        pattern = r'([A-Z]{2})\s+([\d\.]+[BMK]?)'
 
-for line in lines:
+        for line in lines:
 
-    matches = re.findall(pattern, line)
+            match = re.findall(pattern, line)
 
-    if matches:
+            if match:
 
-        for m in matches:
+                for m in match:
 
-            broker = m[0]
+                    broker = m[0]
+                    value = m[1]
 
-            number = float(m[1])
-            unit = m[2]
-
-            # convert ke M
-            if unit == "B":
-                value = number * 1000
-            else:
-                value = number
-
-            brokers.append((broker, value))
+                    brokers.append((broker, value))
 
         # =========================
         # SMART MONEY LOGIC
@@ -603,12 +585,20 @@ for line in lines:
         big_buy = []
         big_sell = []
 
-        for broker, numeric in brokers:
+        for b in brokers:
 
-            if numeric >= 1000:
-                big_buy.append((broker, numeric))
+            broker = b[0]
+            val = b[1]
+
+            if "B" in val:
+                numeric = float(val.replace("B",""))
+                numeric *= 1000
+
+            elif "M" in val:
+                numeric = float(val.replace("M",""))
+
             else:
-                big_sell.append((broker, numeric))
+                numeric = 0
 
             # dummy smart money classify
             if numeric > 500:
@@ -1043,9 +1033,6 @@ async def rsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(result)
 
-# =========================
-# 📸 BROKER SUMMARY IMAGE
-# =========================
 async def broker_summary_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not update.message.photo:
@@ -1057,7 +1044,7 @@ async def broker_summary_image(update: Update, context: ContextTypes.DEFAULT_TYP
 
     file = await context.bot.get_file(photo.file_id)
 
-    path = f"temp/broker_{update.message.message_id}.jpg"
+    path = f"broker_{update.message.message_id}.jpg"
 
     await file.download_to_drive(path)
 
