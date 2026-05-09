@@ -176,48 +176,6 @@ def snd_scan():
         signal = None
         checklist = []
 
-        # =========================
-        # Z-VOLUME CLASSIFIER
-        # =========================
-        if vol_z < 1:
-            z_label = "NORMAL"
-
-        elif 1 <= vol_z < 2:
-            z_label = "EARLY FLOW 🌱"
-
-        elif 2 <= vol_z < 3:
-            z_label = "ACTIVE FLOW 🔥"
-
-        elif 3 <= vol_z < 4:
-            z_label = "SMART MONEY 🟡"
-
-        else:
-            z_label = "MOMENTUM EXTREME 🚀🚀"
-
-        # trend bias
-        if bias_d1 == "BULLISH 🟢":
-            score += 1
-        if bias_d1 == "BEARISH 🔴":
-            score += 1
-
-        # entry zone logic (LOOSER)
-        if bias_d1 == "BULLISH 🟢" and near_support:
-            score += 3
-            signal = "BUY 🟢"
-            checklist.append("Near H4 Support")
-
-        if bias_d1 == "BEARISH 🔴" and near_resistance:
-            score += 3
-            signal = "SELL 🔴"
-            checklist.append("Near H4 Resistance")
-
-        # volume boost
-        if vol_ok:
-            score += 1
-            checklist.append("Volume Confirmed")
-
-        if signal is None:
-            continue
 
         # =========================
         # ENTRY
@@ -816,6 +774,49 @@ def bsjp_scan():
 
         else:
             breakout_label = "WEAK ⚪️"
+
+         # =========================
+        # Z-VOLUME CLASSIFIER
+        # =========================
+        if vol_z < 1:
+            z_label = "NORMAL"
+
+        elif 1 <= vol_z < 2:
+            z_label = "EARLY FLOW 🌱"
+
+        elif 2 <= vol_z < 3:
+            z_label = "ACTIVE FLOW 🔥"
+
+        elif 3 <= vol_z < 4:
+            z_label = "SMART MONEY 🟡"
+
+        else:
+            z_label = "MOMENTUM EXTREME 🚀🚀"
+
+        # trend bias
+        if bias_d1 == "BULLISH 🟢":
+            score += 1
+        if bias_d1 == "BEARISH 🔴":
+            score += 1
+
+        # entry zone logic (LOOSER)
+        if bias_d1 == "BULLISH 🟢" and near_support:
+            score += 3
+            signal = "BUY 🟢"
+            checklist.append("Near H4 Support")
+
+        if bias_d1 == "BEARISH 🔴" and near_resistance:
+            score += 3
+            signal = "SELL 🔴"
+            checklist.append("Near H4 Resistance")
+
+        # volume boost
+        if vol_ok:
+            score += 1
+            checklist.append("Volume Confirmed")
+
+        if signal is None:
+            continue
 
         # =========================
         # SCORING
