@@ -554,11 +554,15 @@ def analyze_broker_summary(image_path):
         img = cv2.imread(image_path)
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.resize(gray, None, fx=3, fy=3)
 
-        # sharpen OCR
         gray = cv2.GaussianBlur(gray, (3,3), 0)
 
-        text = pytesseract.image_to_string(gray)
+        _, thresh = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY)
+        text = pytesseract.image_to_string(
+        thresh,
+        config='--psm 6'    
+        )
 
         # =========================
         # PARSE BROKER
@@ -567,7 +571,9 @@ def analyze_broker_summary(image_path):
 
         lines = text.splitlines()
 
-        pattern = r'([A-Z]{2})\s+([\d\.]+[BMK]?)'
+        pattern = r'([A-Z]{2})\s+([\d\.]+)(B|M)'
+        if unit == "B":
+            value *= 1000
 
         for line in lines:
 
