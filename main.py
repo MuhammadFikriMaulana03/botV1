@@ -545,112 +545,66 @@ def get_news(symbol=None):
 # =========================
 # 🧠 BROKER SUMMARY ANALYZER
 # =========================
-def analyze_broker_summary(image_path):
+def analyze_broker_image(photo_path):
 
-    try:
-        img = cv2.imread(image_path)
+    img = cv2.imread(photo_path)
 
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # =========================
+    # PREPROCESSING OCR
+    # =========================
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # sharpen OCR
-        gray = cv2.GaussianBlur(gray, (3,3), 0)
-        _, gray = cv2.threshold(
-        gray,
-        0,
-        255,
-        cv2.THRESH_BINARY + cv2.THRESH_OTSU
+    # perbesar gambar biar angka kebaca
+    gray = cv2.resize(gray, None, fx=3, fy=3)
+
+    # blur tipis
+    gray = cv2.GaussianBlur(gray, (3,3), 0)
+
+    # threshold
+    _, thresh = cv2.threshold(gray, 180, 255, cv2.THRESH_BINARY)
+
+    # OCR
+    text = pytesseract.image_to_string(
+        thresh,
+        config='--psm 6'
     )
 
-        text = pytesseract.image_to_string(gray)
+    print(text)
 
-        # =========================
-        # PARSE BROKER
-        # =========================
-        brokers = []
+    # =========================
+    # PARSING BROKER
+    # =========================
+    import re
 
-        lines = text.splitlines()
+    matches = re.findall(
+        r'([A-Z]{2})\s+([\d\.]+)(B|M)',
+        text
+    )
 
-        pattern = r'([A-Z]{2})\s+([\d\.]+[BMK]?)'
+    brokers = []
 
-        for line in lines:
+    for code, val, unit in matches:
 
-            match = re.findall(pattern, line)
+        value = float(val)
 
-            if match:
+        # convert B ke M
+        if unit == "B":
+            value *= 1000
 
-                for m in match:
+        brokers.append((code, value))
 
-                    broker = m[0]
-                    value = m[1]
+    brokers.sort(key=lambda x: x[1], reverse=True)
 
-                    brokers.append((broker, value))
+    # =========================
+    # OUTPUT
+    # =========================
+    result = "🧠 BROKER SUMMARY ANALYSIS\n"
+    result += "━━━━━━━━━━━━━━\n\n"
 
-        # =========================
-        # SMART MONEY LOGIC
-        # =========================
-        big_buy = []
-        big_sell = []
+    for b in brokers[:10]:
+        result += f"• {b[0]} → {b[1]:.0f}M\n"
 
-        for b in brokers:
-
-            broker = b[0]
-            val = b[1]
-
-            if "B" in val:
-                numeric = float(val.replace("B",""))
-                numeric *= 1000
-
-            elif "M" in val:
-                numeric = float(val.replace("M",""))
-
-            else:
-                numeric = 0
-
-            # dummy smart money classify
-            if numeric > 500:
-                big_buy.append((broker, numeric))
-            else:
-                big_sell.append((broker, numeric))
-
-        # =========================
-        # OUTPUT
-        # =========================
-        text_out = "🧠 BROKER SUMMARY ANALYSIS\n"
-        text_out += "━━━━━━━━━━━━━━\n\n"
-
-        text_out += "🔥 BIG ACCUMULATION\n"
-
-        for b in big_buy[:5]:
-            text_out += f"• {b[0]} → {b[1]:.0f}M\n"
-
-        text_out += "\n🔻 DISTRIBUTION\n"
-
-        for b in big_sell[:5]:
-            text_out += f"• {b[0]} → {b[1]:.0f}M\n"
-
-        # =========================
-        # SIGNAL ENGINE
-        # =========================
-        if len(big_buy) > len(big_sell):
-            signal = "🟢 ACCUMULATION"
-            insight = "Bandar cenderung collecting"
-        else:
-            signal = "🔴 DISTRIBUTION"
-            insight = "Tekanan jual masih dominan"
-
-        text_out += f"""
-
-━━━━━━━━━━━━━━
-🎯 SIGNAL: {signal}
-
-💡 Insight:
-{insight}
-"""
-
-        return text_out
-
-    except Exception as e:
-        return f"❌ Error analyze broker summary:\n{e}"
+    return result
 
 # =========================
 # 🧠 BSJP PRO (FIXED + SMART MONEY)
