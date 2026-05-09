@@ -22,7 +22,8 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
 os.system("pip install --no-cache-dir mplfinance matplotlib")
 os.system("pip install --no-cache-dir python-telegram-bot[job-queue]")
-os.system("pip install pytesseract pillow opencv-python")
+os.system("pip install --no-cache-dir pytesseract pillow")
+os.system("pip install --no-cache-dir opencv-python")
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
