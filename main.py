@@ -36,10 +36,15 @@ from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange, BollingerBands
 
 from PIL import Image
-from telegram.ext import MessageHandler, filters
 
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters
+)
 from concurrent.futures import ThreadPoolExecutor
 
 executor = ThreadPoolExecutor(max_workers=5)
@@ -548,100 +553,164 @@ def get_news(symbol=None):
 def analyze_broker_summary(image_path):
 
     try:
+        # =========================
+        # LOAD IMAGE
+        # =========================
         img = cv2.imread(image_path)
+
+        if img is None:
+            return "❌ Gagal membaca gambar"
+
+        # resize biar OCR lebih jelas
+        img = cv2.resize(img, None, fx=2, fy=2)
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # sharpen OCR
+        # sharpen
         gray = cv2.GaussianBlur(gray, (3,3), 0)
 
-        text = pytesseract.image_to_string(gray)
+        # threshold
+        _, thresh = cv2.threshold(
+            gray,
+            0,
+            255,
+            cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )
+
+        # OCR
+        text = pytesseract.image_to_string(
+            thresh,
+            config='--psm 6'
+        )
+
+        # DEBUG OCR
+        print(text)
 
         # =========================
-        # PARSE BROKER
+        # PARSE
         # =========================
-        brokers = []
-
         lines = text.splitlines()
 
-        pattern = r'([A-Z]{2})\s+([\d\.]+[BMK]?)'
+        buy_list = []
+        sell_list = []
+
+        current_mode = "buy"
 
         for line in lines:
 
-            match = re.findall(pattern, line)
+            line = line.strip()
 
-            if match:
+            # skip header
+            if len(line) < 3:
+                continue
 
-                for m in match:
+            # detect kanan kiri
+            # format contoh:
+            # CC 16.1B
+            matches = re.findall(
+                r'([A-Z]{2})\s+([\d\.]+)\s*([BM])',
+                line
+            )
 
-                    broker = m[0]
-                    value = m[1]
+            for m in matches:
 
-                    brokers.append((broker, value))
+                broker = m[0]
+                value = float(m[1])
+
+                unit = m[2]
+
+                # convert
+                if unit == "B":
+                    value *= 1000
+
+                # =========================
+                # LOGIC BUY/SELL
+                # =========================
+
+                # broker kiri = buy
+                # broker kanan = sell
+
+                # split berdasarkan posisi text
+                pos = line.find(broker)
+
+                if pos < len(line) / 2:
+                    buy_list.append((broker, value))
+                else:
+                    sell_list.append((broker, value))
 
         # =========================
-        # SMART MONEY LOGIC
+        # SORT
         # =========================
-        big_buy = []
-        big_sell = []
+        buy_list = sorted(
+            buy_list,
+            key=lambda x: x[1],
+            reverse=True
+        )
 
-        for b in brokers:
+        sell_list = sorted(
+            sell_list,
+            key=lambda x: x[1],
+            reverse=True
+        )
 
-            broker = b[0]
-            val = b[1]
+        # =========================
+        # TOTAL
+        # =========================
+        total_buy = sum(x[1] for x in buy_list)
+        total_sell = sum(x[1] for x in sell_list)
 
-            if "B" in val:
-                numeric = float(val.replace("B",""))
-                numeric *= 1000
+        net = total_buy - total_sell
 
-            elif "M" in val:
-                numeric = float(val.replace("M",""))
+        # =========================
+        # SIGNAL
+        # =========================
+        if net > 3000:
+            signal = "🟢 STRONG ACCUMULATION"
+            insight = "Bandar besar dominan akumulasi"
 
-            else:
-                numeric = 0
+        elif net > 0:
+            signal = "🟡 ACCUMULATION"
+            insight = "Buy broker masih lebih dominan"
 
-            # dummy smart money classify
-            if numeric > 500:
-                big_buy.append((broker, numeric))
-            else:
-                big_sell.append((broker, numeric))
+        elif net < -3000:
+            signal = "🔴 STRONG DISTRIBUTION"
+            insight = "Tekanan distribusi besar"
+
+        else:
+            signal = "🟠 DISTRIBUTION"
+            insight = "Seller masih dominan"
 
         # =========================
         # OUTPUT
         # =========================
-        text_out = "🧠 BROKER SUMMARY ANALYSIS\n"
-        text_out += "━━━━━━━━━━━━━━\n\n"
+        out = "🧠 BROKER SUMMARY ANALYSIS\n"
+        out += "━━━━━━━━━━━━━━\n\n"
 
-        text_out += "🔥 BIG ACCUMULATION\n"
+        out += "🔥 TOP ACCUMULATION\n"
 
-        for b in big_buy[:5]:
-            text_out += f"• {b[0]} → {b[1]:.0f}M\n"
+        for b in buy_list[:5]:
+            out += f"• {b[0]} → {b[1]:.1f}B\n"
 
-        text_out += "\n🔻 DISTRIBUTION\n"
+        out += "\n🔻 TOP DISTRIBUTION\n"
 
-        for b in big_sell[:5]:
-            text_out += f"• {b[0]} → {b[1]:.0f}M\n"
+        for s in sell_list[:5]:
+            out += f"• {s[0]} → {s[1]:.1f}B\n"
 
-        # =========================
-        # SIGNAL ENGINE
-        # =========================
-        if len(big_buy) > len(big_sell):
-            signal = "🟢 ACCUMULATION"
-            insight = "Bandar cenderung collecting"
-        else:
-            signal = "🔴 DISTRIBUTION"
-            insight = "Tekanan jual masih dominan"
-
-        text_out += f"""
+        out += f"""
 
 ━━━━━━━━━━━━━━
-🎯 SIGNAL: {signal}
+📊 TOTAL BUY : {total_buy:.1f}B
+📊 TOTAL SELL: {total_sell:.1f}B
+📈 NET FLOW  : {net:.1f}B
+
+🎯 SIGNAL:
+{signal}
 
 💡 Insight:
 {insight}
 """
 
-        return text_out
+        return out
 
     except Exception as e:
         return f"❌ Error analyze broker summary:\n{e}"
