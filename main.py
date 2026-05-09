@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import io
 import pytesseract
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 import cv2
 import re
 import time
@@ -20,6 +21,8 @@ import asyncio
 import logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
+os.system("apt update")
+os.system("apt install -y tesseract-ocr")
 os.system("pip install --no-cache-dir mplfinance matplotlib")
 os.system("pip install --no-cache-dir python-telegram-bot[job-queue]")
 os.system("pip install --no-cache-dir pytesseract pillow")
