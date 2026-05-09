@@ -1011,7 +1011,7 @@ async def broker_summary_image(update: Update, context: ContextTypes.DEFAULT_TYP
 
     await file.download_to_drive(path)
 
-    result = await asyncio.to_thread(analyze_broker_summary, path)
+    result = await asyncio.to_thread(analyze_broker_image, path)
 
     await update.message.reply_text(result)
 
