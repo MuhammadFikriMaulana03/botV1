@@ -11,6 +11,9 @@ matplotlib.use('Agg')  # 🔥 WAJIB
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import io
+import pytesseract
+import cv2
+import re
 import time
 import datetime
 import asyncio
@@ -19,11 +22,17 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
 os.system("pip install --no-cache-dir mplfinance matplotlib")
 os.system("pip install --no-cache-dir python-telegram-bot[job-queue]")
+os.system("pip install pytesseract pillow opencv-python")
+if not os.path.exists("temp"):
+    os.makedirs("temp")
 
 
 from ta.trend import SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange, BollingerBands
+
+from PIL import Image
+from telegram.ext import MessageHandler, filters
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -530,6 +539,116 @@ def get_news(symbol=None):
         return f"❌ Error news: {e}"
 
 # =========================
+# 🧠 BROKER SUMMARY ANALYZER
+# =========================
+def analyze_broker_summary(image_path):
+
+    try:
+        img = cv2.imread(image_path)
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # sharpen OCR
+        gray = cv2.GaussianBlur(gray, (3,3), 0)
+        _, gray = cv2.threshold(
+        gray,
+        0,
+        255,
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU
+    )
+
+        text = pytesseract.image_to_string(gray)
+
+        # =========================
+        # PARSE BROKER
+        # =========================
+        brokers = []
+
+        lines = text.splitlines()
+
+        pattern = r'([A-Z]{2})\s+([\d\.]+[BMK]?)'
+
+        for line in lines:
+
+            match = re.findall(pattern, line)
+
+            if match:
+
+                for m in match:
+
+                    broker = m[0]
+                    value = m[1]
+
+                    brokers.append((broker, value))
+
+        # =========================
+        # SMART MONEY LOGIC
+        # =========================
+        big_buy = []
+        big_sell = []
+
+        for b in brokers:
+
+            broker = b[0]
+            val = b[1]
+
+            if "B" in val:
+                numeric = float(val.replace("B",""))
+                numeric *= 1000
+
+            elif "M" in val:
+                numeric = float(val.replace("M",""))
+
+            else:
+                numeric = 0
+
+            # dummy smart money classify
+            if numeric > 500:
+                big_buy.append((broker, numeric))
+            else:
+                big_sell.append((broker, numeric))
+
+        # =========================
+        # OUTPUT
+        # =========================
+        text_out = "🧠 BROKER SUMMARY ANALYSIS\n"
+        text_out += "━━━━━━━━━━━━━━\n\n"
+
+        text_out += "🔥 BIG ACCUMULATION\n"
+
+        for b in big_buy[:5]:
+            text_out += f"• {b[0]} → {b[1]:.0f}M\n"
+
+        text_out += "\n🔻 DISTRIBUTION\n"
+
+        for b in big_sell[:5]:
+            text_out += f"• {b[0]} → {b[1]:.0f}M\n"
+
+        # =========================
+        # SIGNAL ENGINE
+        # =========================
+        if len(big_buy) > len(big_sell):
+            signal = "🟢 ACCUMULATION"
+            insight = "Bandar cenderung collecting"
+        else:
+            signal = "🔴 DISTRIBUTION"
+            insight = "Tekanan jual masih dominan"
+
+        text_out += f"""
+
+━━━━━━━━━━━━━━
+🎯 SIGNAL: {signal}
+
+💡 Insight:
+{insight}
+"""
+
+        return text_out
+
+    except Exception as e:
+        return f"❌ Error analyze broker summary:\n{e}"
+
+# =========================
 # 🧠 BSJP PRO (FIXED + SMART MONEY)
 # =========================
 def bsjp_scan():
@@ -849,6 +968,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /snd Kode Emiten
 /sndc Kode Emiten
 /rsi 🔥 (RSI Oversold)
+/bs Analyze Broker Summary Image
 """)
 
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -912,6 +1032,28 @@ async def rsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔎 Scanning RSI Oversold...")
 
     result = await asyncio.to_thread(rsi_scan)
+
+    await update.message.reply_text(result)
+
+# =========================
+# 📸 BROKER SUMMARY IMAGE
+# =========================
+async def broker_summary_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    if not update.message.photo:
+        return
+
+    await update.message.reply_text("📸 Membaca Broker Summary...")
+
+    photo = update.message.photo[-1]
+
+    file = await context.bot.get_file(photo.file_id)
+
+    path = f"temp/broker_{update.message.message_id}.jpg"
+
+    await file.download_to_drive(path)
+
+    result = await asyncio.to_thread(analyze_broker_summary, path)
 
     await update.message.reply_text(result)
 
@@ -1105,6 +1247,7 @@ def main():
     app.add_handler(CommandHandler("sndc", sndc))
     app.add_handler(CommandHandler("snr", snr))
     app.add_handler(CommandHandler("rsi", rsi))
+    app.add_handler(MessageHandler(filters.PHOTO, broker_summary_image))
     
 
     print("🚀 Bot KokoKiki Ready")
