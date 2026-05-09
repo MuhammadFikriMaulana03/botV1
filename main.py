@@ -567,24 +567,35 @@ def analyze_broker_summary(image_path):
         # =========================
         # PARSE BROKER
         # =========================
-        brokers = []
+        # =========================
+# PARSE BROKER
+# =========================
+brokers = []
 
-        lines = text.splitlines()
+lines = text.splitlines()
 
-        pattern = r'([A-Z]{2})\s+([\d\.]+)(B|M)'
+pattern = r'([A-Z]{2})\s+([\d\.]+)(B|M)'
 
-        for line in lines:
+for line in lines:
 
-            match = re.findall(pattern, line)
+    matches = re.findall(pattern, line)
 
-            if match:
+    if matches:
 
-                for m in match:
+        for m in matches:
 
-                    broker = m[0]
-                    value = m[1]
+            broker = m[0]
 
-                    brokers.append((broker, value))
+            number = float(m[1])
+            unit = m[2]
+
+            # convert ke M
+            if unit == "B":
+                value = number * 1000
+            else:
+                value = number
+
+            brokers.append((broker, value))
 
         # =========================
         # SMART MONEY LOGIC
@@ -592,20 +603,12 @@ def analyze_broker_summary(image_path):
         big_buy = []
         big_sell = []
 
-        for b in brokers:
+        for broker, numeric in brokers:
 
-            broker = b[0]
-            val = b[1]
-
-            if "B" in val:
-                numeric = float(val.replace("B",""))
-                numeric *= 1000
-
-            elif "M" in val:
-                numeric = float(val.replace("M",""))
-
+            if numeric >= 1000:
+                big_buy.append((broker, numeric))
             else:
-                numeric = 0
+                big_sell.append((broker, numeric))
 
             # dummy smart money classify
             if numeric > 500:
