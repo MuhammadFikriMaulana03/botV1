@@ -695,261 +695,257 @@ def analyze_broker_summary(image_path):
 # 🧠 BSJP PRO (FIXED + SMART MONEY)
 # =========================
 def bsjp_scan():
-    
+
     results = []
 
-    # 🔥 PARALLEL FETCH
     with ThreadPoolExecutor(max_workers=10) as executor:
         data_list = list(executor.map(fetch_symbol, BSJP_LIST))
 
-    # 🔁 LOOP HASIL
     for symbol, df in data_list:
 
-        if df is None:
+        try:
+
+            if df is None or len(df) < 30:
+                continue
+
+            close = S(df["Close"])
+            open_ = S(df["Open"])
+            high = S(df["High"])
+            low = S(df["Low"])
+            volume = S(df["Volume"])
+
+            price = close.iloc[-1]
+            prev_close = close.iloc[-2]
+
+            change_pct = ((price - prev_close) / prev_close) * 100
+
+            # =========================
+            # BASIC FILTER
+            # =========================
+            avg_value = (close * volume).rolling(20).mean().iloc[-1]
+
+            # skip saham sepi
+            if avg_value < 20_000_000_000:
+                continue
+
+            # skip terlalu liar
+            if abs(change_pct) > 15:
+                continue
+
+            # =========================
+            # VOLUME Z SCORE
+            # =========================
+            vol_mean = volume.rolling(20).mean().iloc[-1]
+            vol_std = volume.rolling(20).std().iloc[-1]
+
+            if vol_std == 0:
+                continue
+
+            vol_z = (volume.iloc[-1] - vol_mean) / vol_std
+
+            # =========================
+            # RANGE
+            # =========================
+            range_high = high.rolling(20).max().iloc[-2]
+            range_low = low.rolling(20).min().iloc[-2]
+
+            breakout = price > range_high
+
+            # posisi harga dalam range
+            position = (
+                (price - range_low)
+                / (range_high - range_low)
+            ) if range_high != range_low else 0.5
+
+            # =========================
+            # CANDLE STRENGTH
+            # =========================
+            candle_body = abs(price - open_.iloc[-1])
+
+            candle_range = (
+                high.iloc[-1] - low.iloc[-1]
+            )
+
+            body_ratio = (
+                candle_body / candle_range
+            ) if candle_range != 0 else 0
+
+            close_near_high = (
+                (high.iloc[-1] - price)
+                / candle_range
+            ) < 0.25 if candle_range != 0 else False
+
+            bullish_candle = (
+                price > open_.iloc[-1]
+            )
+
+            # =========================
+            # Z LABEL
+            # =========================
+            if vol_z < 1:
+                z_label = "NORMAL ⚪️"
+
+            elif vol_z < 2:
+                z_label = "EARLY FLOW 🌱"
+
+            elif vol_z < 3:
+                z_label = "ACTIVE FLOW 🔥"
+
+            elif vol_z < 4:
+                z_label = "SMART MONEY 🟡"
+
+            else:
+                z_label = "MOMENTUM EXTREME 🚀🚀"
+
+            # =========================
+            # SCORE ENGINE
+            # =========================
+            score = 0
+            checklist = []
+
+            # volume
+            if vol_z > 4:
+                score += 5
+                checklist.append(f"Extreme Vol Z={vol_z:.2f}")
+
+            elif vol_z > 3:
+                score += 4
+                checklist.append(f"Smart Money Z={vol_z:.2f}")
+
+            elif vol_z > 2:
+                score += 2
+                checklist.append(f"Active Volume Z={vol_z:.2f}")
+
+            # breakout
+            if breakout:
+                score += 4
+                checklist.append("Breakout")
+
+            # near breakout
+            elif position > 0.85:
+                score += 3
+                checklist.append("Near Breakout")
+
+            # bullish candle
+            if bullish_candle:
+                score += 1
+                checklist.append("Bullish Candle")
+
+            # strong close
+            if close_near_high:
+                score += 2
+                checklist.append("Close Near High")
+
+            # strong body
+            if body_ratio > 0.6:
+                score += 2
+                checklist.append("Momentum Candle")
+
+            # =========================
+            # CLASSIFICATION
+            # =========================
+            if score >= 12:
+                label = "HIGH BREAKOUT 🚀🚀"
+
+            elif score >= 9:
+                label = "PRE BREAK ⚡️"
+
+            elif score >= 6:
+                label = "BUILDING 🔥"
+
+            else:
+                continue
+
+            # =========================
+            # ENTRY LOGIC
+            # =========================
+            entry = price * 0.998
+
+            # scalping SL
+            sl = low.iloc[-1] * 0.995
+
+            risk = entry - sl
+
+            if risk <= 0:
+                continue
+
+            # TP realistis
+            tp = entry + (risk * 1.8)
+
+            rr = (tp - entry) / risk
+
+            sl_pct = ((sl - entry) / entry) * 100
+            tp_pct = ((tp - entry) / entry) * 100
+
+            # =========================
+            # FINAL FILTER
+            # =========================
+            if rr < 1.3:
+                continue
+
+            if tp_pct < 1:
+                continue
+
+            results.append({
+                "symbol": symbol,
+                "score": score,
+                "vol_z": vol_z,
+                "label": label,
+                "entry": entry,
+                "sl": sl,
+                "tp": tp,
+                "rr": rr,
+                "sl_pct": sl_pct,
+                "tp_pct": tp_pct,
+                "change_pct": change_pct,
+                "checklist": checklist,
+                "z_label": z_label,
+            })
+
+        except:
             continue
-
-        close = S(df["Close"])
-        open_ = S(df["Open"])
-        high = S(df["High"])
-        low = S(df["Low"])
-        volume = S(df["Volume"])
-
-        price = close.iloc[-1]
-        prev_close = close.iloc[-2] if len(close) > 1 else price
-        change_pct = ((price - prev_close) / prev_close) * 100 if prev_close != 0 else 0
-
-        # =========================
-        # SMART MONEY ENGINE
-        # =========================
-        vol_mean = volume.rolling(20).mean()
-        vol_std = volume.rolling(20).std()
-        vol_z = (volume.iloc[-1] - vol_mean.iloc[-1]) / vol_std.iloc[-1] if vol_std.iloc[-1] != 0 else 0
-
-        range_high = high.rolling(20).max().iloc[-2]
-        range_low = low.rolling(20).min().iloc[-2]
-
-        base_low = low.rolling(10).min().iloc[-1]
-        base_high = high.rolling(10).max().iloc[-1]
-
-        breakout = price > range_high
-        breakdown = price < range_low
-
-        position = (price - range_low) / (range_high - range_low) if range_high != range_low else 0.5
-
-        is_base = position < 0.4
-        is_prebreak = 0.7 < position < 0.95
-
-        # =========================
-        # BREAKOUT PROBABILITY
-        # =========================
-        breakout_prob = 0
-
-        # dekat resistance
-        if position > 0.8:
-            breakout_prob += 2
-
-        # volume besar
-        if vol_z > 3:
-            breakout_prob += 3
-        elif vol_z > 2:
-            breakout_prob += 2
-
-        # bullish candle
-        if price > open_.iloc[-1]:
-            breakout_prob += 1
-
-        # breakout valid
-        if breakout:
-            breakout_prob += 3
-
-        # classification
-        if breakout_prob >= 7:
-            breakout_label = "HIGH BREAKOUT 🚀"
-
-        elif breakout_prob >= 5:
-            breakout_label = "PRE BREAK ⚡️"
-
-        elif breakout_prob >= 3:
-            breakout_label = "BUILDING 🔥"
-
-        else:
-            breakout_label = "WEAK ⚪️"
-
-         # =========================
-        # Z-VOLUME CLASSIFIER
-        # =========================
-        if vol_z < 1:
-            z_label = "NORMAL"
-
-        elif 1 <= vol_z < 2:
-            z_label = "EARLY FLOW 🌱"
-
-        elif 2 <= vol_z < 3:
-            z_label = "ACTIVE FLOW 🔥"
-
-        elif 3 <= vol_z < 4:
-            z_label = "SMART MONEY 🟡"
-
-        else:
-            z_label = "MOMENTUM EXTREME 🚀🚀"
-
-        # trend bias
-        if bias_d1 == "BULLISH 🟢":
-            score += 1
-        if bias_d1 == "BEARISH 🔴":
-            score += 1
-
-        # entry zone logic (LOOSER)
-        if bias_d1 == "BULLISH 🟢" and near_support:
-            score += 3
-            signal = "BUY 🟢"
-            checklist.append("Near H4 Support")
-
-        if bias_d1 == "BEARISH 🔴" and near_resistance:
-            score += 3
-            signal = "SELL 🔴"
-            checklist.append("Near H4 Resistance")
-
-        # volume boost
-        if vol_ok:
-            score += 1
-            checklist.append("Volume Confirmed")
-
-        if signal is None:
-            continue
-
-        # =========================
-        # SCORING
-        # =========================
-        score = 0
-        checklist = []
-
-        # =========================
-        # SMART VOLUME SCORE
-        # =========================
-        if vol_z > 4:
-            score += 6
-            checklist.append(f"EXTREME MOMENTUM Z={vol_z:.2f} 🚀🚀")
-
-        elif vol_z > 3:
-            score += 5
-            checklist.append(f"SMART MONEY Z={vol_z:.2f} 🟡")
-
-        elif vol_z > 2:
-            score += 3
-            checklist.append(f"ACTIVE FLOW Z={vol_z:.2f} 🔥")
-
-        elif vol_z > 1:
-            score += 1
-            checklist.append(f"EARLY FLOW Z={vol_z:.2f} 🌱")
-
-        # =========================
-        # CLASSIFICATION
-        # =========================
-        if score >= 9:
-            label = "BREAK 🚀🚀"
-            strength = "STRONG FLOW"
-        elif score >= 7:
-            label = "BREAK 🚀"
-            strength = "HIGH FLOW"
-        elif score >= 5:
-            label = "PRE-BREAK ⚡️"
-            strength = "BUILDING FLOW"
-        elif score >= 3:
-            label = "ACCUMULATION 🟡"
-            strength = "EARLY FLOW"
-        else:
-            continue
-
-        # =========================
-        # ENTRY LOGIC (FIXED)
-        # =========================
-        if is_base:
-            entry = base_low * 1.01
-            sl = base_low * 0.97
-            tp = range_high
-            entry_type = "BASE ENTRY 🟡"
-
-        elif is_prebreak:
-            entry = base_high * 1.01
-            sl = base_low * 0.98
-            tp = range_high * 1.05
-            entry_type = "PRE-BREAK ENTRY ⚡️"
-
-        elif breakout:
-            entry = range_high * 1.01
-            sl = base_low * 0.98
-            tp = range_high * 1.08
-            entry_type = "BREAKOUT ENTRY 🚀"
-
-        else:
-            continue
-
-        # ❌ Hindari entry terlalu atas
-        if position > 0.95:
-            continue
-
-        # =========================
-        # RISK CALC
-        # =========================
-        sl_pct = ((sl - entry) / entry) * 100
-        tp_pct = ((tp - entry) / entry) * 100
-        rr = abs((tp - entry) / (entry - sl)) if entry != sl else 0
-
-        if rr < 1:
-            continue
-
-        # =========================
-        # SAVE RESULT
-        # =========================
-        results.append({
-            "symbol": symbol,
-            "score": score,
-            "vol_z": vol_z,
-            "label": label,
-            "strength": strength,
-            "entry": entry,
-            "entry_type": entry_type,
-            "sl": sl,
-            "tp": tp,
-            "sl_pct": sl_pct,
-            "tp_pct": tp_pct,
-            "rr": rr,
-            "checklist": checklist,
-            "change_pct": change_pct,
-            "z_label": z_label,
-            "breakout_label": breakout_label,
-        })
 
     # =========================
     # OUTPUT
     # =========================
     if not results:
-        return "❌ Tidak ada setup BSJP MAX V2"
+        return "❌ Tidak ada setup BSJP"
 
-    results.sort(key=lambda x: x["score"], reverse=True)
+    results.sort(
+        key=lambda x: (
+            x["score"],
+            x["vol_z"]
+        ),
+        reverse=True
+    )
 
-    text = "🔥 BSJP MAX V2 (SMART MONEY FLOW)\n"
+    text = "🔥 BSJP SCALPING FLOW\n"
     text += "━━━━━━━━━━━━━━━━━━\n\n"
 
     for r in results[:5]:
+
         text += f"""📊 {r['symbol']}.JK
 💰 Price: {r['entry']:.2f} ({r['change_pct']:+.2f}%)
-Score: {r['score']} | Z-Vol: {r['vol_z']:.2f}
-📡 {r['z_label']} | {r['breakout_label']}
-{r['strength']}
 
-{r['label']}
-{' | '.join(r['checklist'])}
+📡 {r['z_label']}
+🎯 {r['label']}
 
-💰 Entry: {r['entry']:.2f} ({r['entry_type']})
+Score: {r['score']}
+Z-Vol: {r['vol_z']:.2f}
+
+🔎 {' | '.join(r['checklist'])}
+
+💰 Entry: {r['entry']:.2f}
 🧱 SL: {r['sl']:.2f} ({r['sl_pct']:.2f}%)
 🎯 TP: {r['tp']:.2f} (+{r['tp_pct']:.2f}%)
+
 ⚖️ RR: {r['rr']:.2f}
 
 ━━━━━━━━━━━━━━━━━━
+
 """
-        return text
+
+    return text
 
 # ============
 # RSI Detektor
