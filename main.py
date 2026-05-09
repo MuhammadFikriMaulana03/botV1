@@ -176,6 +176,24 @@ def snd_scan():
         signal = None
         checklist = []
 
+        # =========================
+        # Z-VOLUME CLASSIFIER
+        # =========================
+        if vol_z < 1:
+            z_label = "NORMAL"
+
+        elif 1 <= vol_z < 2:
+            z_label = "EARLY FLOW 🌱"
+
+        elif 2 <= vol_z < 3:
+            z_label = "ACTIVE FLOW 🔥"
+
+        elif 3 <= vol_z < 4:
+            z_label = "SMART MONEY 🟡"
+
+        else:
+            z_label = "MOMENTUM EXTREME 🚀🚀"
+
         # trend bias
         if bias_d1 == "BULLISH 🟢":
             score += 1
@@ -764,40 +782,65 @@ def bsjp_scan():
         is_prebreak = 0.7 < position < 0.95
 
         # =========================
+        # BREAKOUT PROBABILITY
+        # =========================
+        breakout_prob = 0
+
+        # dekat resistance
+        if position > 0.8:
+            breakout_prob += 2
+
+        # volume besar
+        if vol_z > 3:
+            breakout_prob += 3
+        elif vol_z > 2:
+            breakout_prob += 2
+
+        # bullish candle
+        if price > open_.iloc[-1]:
+            breakout_prob += 1
+
+        # breakout valid
+        if breakout:
+            breakout_prob += 3
+
+        # classification
+        if breakout_prob >= 7:
+            breakout_label = "HIGH BREAKOUT 🚀"
+
+        elif breakout_prob >= 5:
+            breakout_label = "PRE BREAK ⚡️"
+
+        elif breakout_prob >= 3:
+            breakout_label = "BUILDING 🔥"
+
+        else:
+            breakout_label = "WEAK ⚪️"
+
+        # =========================
         # SCORING
         # =========================
         score = 0
         checklist = []
 
-        if vol_z > 3:
-            score += 4
-            checklist.append(f"VOLUME Z={vol_z:.2f} 🚀🚀")
+        # =========================
+        # SMART VOLUME SCORE
+        # =========================
+        if vol_z > 4:
+            score += 6
+            checklist.append(f"EXTREME MOMENTUM Z={vol_z:.2f} 🚀🚀")
+
+        elif vol_z > 3:
+            score += 5
+            checklist.append(f"SMART MONEY Z={vol_z:.2f} 🟡")
+
         elif vol_z > 2:
             score += 3
-            checklist.append(f"Volume Spike Z={vol_z:.2f} 🚀")
+            checklist.append(f"ACTIVE FLOW Z={vol_z:.2f} 🔥")
+
         elif vol_z > 1:
             score += 1
-            checklist.append(f"Volume Active Z={vol_z:.2f}")
-
-        if breakout:
-            score += 2
-            checklist.append("BREAKOUT 🚀🔥")
-
-        if breakdown:
-            score += 2
-            checklist.append("BREAKDOWN 🔻")
-
-        if 0.90 < position < 0.98 and vol_z > 1:
-            score += 3
-            checklist.append("PRE-BREAK ⚡️")
-
-        if position < 0.3 and vol_z > 1:
-            score += 2
-            checklist.append("ACCUMULATION 🟡")
-
-        if price > open_.iloc[-1]:
-            score += 1
-            checklist.append("BUY PRESSURE 🟢")
+            checklist.append(f"EARLY FLOW Z={vol_z:.2f} 🌱")
 
         # =========================
         # CLASSIFICATION
@@ -873,6 +916,8 @@ def bsjp_scan():
             "rr": rr,
             "checklist": checklist,
             "change_pct": change_pct,
+            "z_label": z_label,
+            "breakout_label": breakout_label,
         })
 
     # =========================
@@ -890,6 +935,7 @@ def bsjp_scan():
         text += f"""📊 {r['symbol']}.JK
 💰 Price: {r['entry']:.2f} ({r['change_pct']:+.2f}%)
 Score: {r['score']} | Z-Vol: {r['vol_z']:.2f}
+📡 {r['z_label']} | {r['breakout_label']}
 {r['strength']}
 
 {r['label']}
