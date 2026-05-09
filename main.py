@@ -572,8 +572,6 @@ def analyze_broker_summary(image_path):
         lines = text.splitlines()
 
         pattern = r'([A-Z]{2})\s+([\d\.]+)(B|M)'
-        if unit == "B":
-            value *= 1000
 
         for line in lines:
 
