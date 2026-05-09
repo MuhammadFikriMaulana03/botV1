@@ -7,3 +7,4 @@ Pillow
 matplotlib
 mplfinance
 requests
+pytesseract
