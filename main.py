@@ -36,7 +36,6 @@ from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange, BollingerBands
 
 from PIL import Image
-from rembg import remove
 
 from telegram import (
     Update
