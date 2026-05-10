@@ -1068,20 +1068,38 @@ def snr_scan(symbol):
 """
 
 # =========================
-# 🖼️ REMOVE BACKGROUND
+# 🖼️ REMOVE BG + COLOR BG
 # =========================
-def remove_background_image(input_path):
+def remove_background_image(input_path, bg_color=(0, 170, 255)):
 
     try:
-        input_image = Image.open(input_path)
+
+        # buka gambar
+        input_image = Image.open(input_path).convert("RGBA")
 
         # remove bg
         output = remove(input_image)
 
-        # save result
-        output_path = input_path.replace(".jpg", "_nobg.png")
+        # buat background warna
+        background = Image.new(
+            "RGBA",
+            output.size,
+            bg_color
+        )
 
-        output.save(output_path)
+        # tempel hasil remove bg
+        final = Image.alpha_composite(
+            background,
+            output
+        )
+
+        # convert biar ringan
+        final = final.convert("RGB")
+
+        # save
+        output_path = input_path.replace(".jpg", "_bg.jpg")
+
+        final.save(output_path, quality=95)
 
         return output_path
 
@@ -1191,7 +1209,12 @@ async def remove_bg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
 
-    USER_MODE[user_id] = "removebg"
+    color = "blue"
+
+    if context.args:
+        color = context.args[0].lower()
+
+    USER_MODE[user_id] = f"removebg_{color}"
 
     await update.message.reply_text(
         "🖼️ Kirim foto yang ingin dihapus backgroundnya"
@@ -1417,15 +1440,36 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # =========================
     # REMOVE BG MODE
     # =========================
-    if mode == "removebg":
+    if mode.startswith("removebg"):
+
+        parts = mode.split("_")
+
+        color_name = parts[1] if len(parts) > 1 else "blue"
+
+        # 🔥 TAMBAH DI SINI
+        COLOR_MAP = {
+            "blue": (0,170,255),
+            "red": (255,0,0),
+            "green": (0,255,120),
+            "black": (0,0,0),
+            "white": (255,255,255),
+            "pink": (255,105,180),
+            "gold": (255,215,0),
+        }
+
+        bg_color = COLOR_MAP.get(
+            color_name,
+            (0,170,255)
+        )
 
         await update.message.reply_text(
-            "🖼️ Menghapus background..."
+            f"🖼️ Menghapus background ({color_name})..."
         )
 
         result_path = await asyncio.to_thread(
             remove_background_image,
-            path
+            path,
+            bg_color
         )
 
         if result_path is None:
@@ -1437,7 +1481,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with open(result_path, "rb") as img:
             await update.message.reply_photo(
                 photo=img,
-                caption="✅ Background berhasil dihapus"
+                caption=f"✅ Background {color_name} berhasil"
             )
 
     # =========================
