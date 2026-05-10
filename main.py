@@ -27,6 +27,7 @@ os.system("pip install --no-cache-dir mplfinance matplotlib")
 os.system("pip install --no-cache-dir python-telegram-bot[job-queue]")
 os.system("pip install --no-cache-dir pytesseract pillow")
 os.system("pip install --no-cache-dir opencv-python-headless")
+os.system("pip install --no-cache-dir rembg onnxruntime")
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
@@ -36,6 +37,8 @@ from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange, BollingerBands
 
 from PIL import Image
+from io import BytesIO
+from rembg import remove
 
 from telegram import (
     Update
@@ -1063,6 +1066,28 @@ def snr_scan(symbol):
 """
 
 # =========================
+# 🖼️ REMOVE BACKGROUND
+# =========================
+def remove_background_image(input_path):
+
+    try:
+        input_image = Image.open(input_path)
+
+        # remove bg
+        output = remove(input_image)
+
+        # save result
+        output_path = input_path.replace(".jpg", "_nobg.png")
+
+        output.save(output_path)
+
+        return output_path
+
+    except Exception as e:
+        print("REMOVE BG ERROR:", e)
+        return None
+
+# =========================
 # COMMANDS
 # =========================
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1080,6 +1105,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /sndc Kode Emiten
 /rsi 🔥 (RSI Oversold)
 /bs Analyze Broker Summary Image
+/removebg
 """)
 
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1145,6 +1171,40 @@ async def rsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = await asyncio.to_thread(rsi_scan)
 
     await update.message.reply_text(result)
+
+# =========================
+# 🖼️ REMOVE BG COMMAND
+# =========================
+async def remove_bg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    if not update.message.photo:
+        await update.message.reply_text("❌ Kirim foto dulu")
+        return
+
+    await update.message.reply_text("🖼️ Menghapus background...")
+
+    photo = update.message.photo[-1]
+
+    file = await context.bot.get_file(photo.file_id)
+
+    path = f"removebg_{update.message.message_id}.jpg"
+
+    await file.download_to_drive(path)
+
+    result_path = await asyncio.to_thread(
+        remove_background_image,
+        path
+    )
+
+    if result_path is None:
+        await update.message.reply_text("❌ Gagal remove background")
+        return
+
+    with open(result_path, "rb") as img:
+        await update.message.reply_photo(
+            photo=img,
+            caption="✅ Background berhasil dihapus"
+        )
 
 async def broker_summary_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -1355,6 +1415,7 @@ def main():
     app.add_handler(CommandHandler("snr", snr))
     app.add_handler(CommandHandler("rsi", rsi))
     app.add_handler(MessageHandler(filters.PHOTO, broker_summary_image))
+    app.add_handler(CommandHandler("removebg", remove_bg))
     
 
     print("🚀 Bot KokoKiki Ready")
