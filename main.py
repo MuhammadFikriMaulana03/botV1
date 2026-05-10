@@ -11,6 +11,7 @@ matplotlib.use('Agg')  # 🔥 WAJIB
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import io
+import uuid
 import pytesseract
 pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 import cv2
@@ -29,21 +30,31 @@ os.system("pip install --no-cache-dir pytesseract pillow")
 os.system("pip install --no-cache-dir opencv-python-headless")
 if not os.path.exists("temp"):
     os.makedirs("temp")
+TEMP_FOLDER = "temp"
+
+os.makedirs(TEMP_FOLDER, exist_ok=True)
 
 
 from ta.trend import SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange, BollingerBands
 
-from PIL import Image
+from PIL import Image, ImageFilter, ImageEnhance, ImageDraw, ImageFont
+from rembg import remove
 
-from telegram import Update
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     ContextTypes,
     MessageHandler,
-    filters
+    filters,
+    CallbackQueryHandler,
+    ContextTypes
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -54,6 +65,11 @@ warnings.filterwarnings("ignore")
 
 TOKEN = "8746301929:AAGJmL-MOMNqT1VG5Jmv5GZ_d6cFuOPba4s"
 
+# ============================================
+# SESSION MEMORY
+# ============================================
+
+user_images = {}
 
 CACHE = {}
 CACHE_TIME = {}
@@ -64,6 +80,145 @@ WATCHLIST = ["AALI", "ABBA", "ABDA", "ABMM", "ACES", "ACST", "ADES", "ADHI", "AI
 ]
 
 BSJP_LIST = WATCHLIST
+# ============================================
+# UTILITIES
+# ============================================
+
+def upscale_hd(image, scale=2):
+    w, h = image.size
+    return image.resize((w * scale, h * scale), Image.LANCZOS)
+
+
+def create_gradient_background(size, color1, color2):
+
+    width, height = size
+
+    base = Image.new("RGB", size, color1)
+    top = Image.new("RGB", size, color2)
+
+    mask = Image.new("L", size)
+
+    mask_data = []
+
+    for y in range(height):
+        mask_data.extend([int(255 * (y / height))] * width)
+
+    mask.putdata(mask_data)
+
+    base.paste(top, (0, 0), mask)
+
+    return base.convert("RGBA")
+
+
+def add_shadow(image):
+
+    shadow = Image.new("RGBA", image.size, (0, 0, 0, 0))
+
+    alpha = image.split()[-1]
+
+    shadow_layer = Image.new("RGBA", image.size, (0, 0, 0, 180))
+    shadow.putalpha(alpha)
+
+    shadow = shadow.filter(ImageFilter.GaussianBlur(18))
+
+    canvas = Image.new(
+        "RGBA",
+        (image.width + 40, image.height + 40),
+        (0, 0, 0, 0)
+    )
+
+    canvas.paste(shadow, (20, 20), shadow)
+    canvas.paste(image, (0, 0), image)
+
+    return canvas
+
+
+def add_glow(image):
+
+    glow = image.filter(ImageFilter.GaussianBlur(20))
+
+    enhancer = ImageEnhance.Brightness(glow)
+    glow = enhancer.enhance(1.6)
+
+    final = Image.alpha_composite(glow, image)
+
+    return final
+
+
+def add_stock_text(image, text="STRONG BUY"):
+
+    draw = ImageDraw.Draw(image)
+
+    try:
+        font = ImageFont.truetype("arial.ttf", 80)
+    except:
+        font = ImageFont.load_default()
+
+    draw.text(
+        (50, 50),
+        text,
+        fill=(255, 255, 255),
+        font=font
+    )
+
+    return image
+
+
+def remove_background_hd(input_path):
+
+    with open(input_path, "rb") as f:
+        input_bytes = f.read()
+
+    output_bytes = remove(input_bytes)
+
+    image = Image.open(io.BytesIO(output_bytes)).convert("RGBA")
+
+    image = upscale_hd(image, scale=2)
+
+    return image
+
+# ============================================
+# CREATE FINAL IMAGE
+# ============================================
+
+def build_final_image(foreground, mode):
+
+    size = foreground.size
+
+    if mode == "red":
+        background = Image.new("RGBA", size, (255, 0, 0, 255))
+
+    elif mode == "blue":
+        background = Image.new("RGBA", size, (0, 80, 255, 255))
+
+    elif mode == "green":
+        background = Image.new("RGBA", size, (0, 200, 120, 255))
+
+    elif mode == "black":
+        background = Image.new("RGBA", size, (0, 0, 0, 255))
+
+    elif mode == "white":
+        background = Image.new("RGBA", size, (255, 255, 255, 255))
+
+    elif mode == "gradient":
+        background = create_gradient_background(
+            size,
+            (0, 0, 0),
+            (0, 120, 255)
+        )
+
+    elif mode == "transparent":
+        return foreground
+
+    else:
+        background = Image.new("RGBA", size, (255, 255, 255, 255))
+
+    final = Image.alpha_composite(background, foreground)
+
+    final = add_shadow(final)
+
+    return final
+
 
 # =========================
 # HELPER
@@ -1081,6 +1236,92 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /bs Analyze Broker Summary Image
 """)
 
+async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user_id = update.effective_user.id
+
+    photo = update.message.photo[-1]
+
+    file = await photo.get_file()
+
+    filename = f"{uuid.uuid4()}.png"
+
+    input_path = os.path.join(TEMP_FOLDER, filename)
+
+    await file.download_to_drive(input_path)
+
+    user_images[user_id] = input_path
+
+    keyboard = [
+        [
+            InlineKeyboardButton("🔴 Red", callback_data="red"),
+            InlineKeyboardButton("🔵 Blue", callback_data="blue")
+        ],
+        [
+            InlineKeyboardButton("🟢 Green", callback_data="green"),
+            InlineKeyboardButton("⚫ Black", callback_data="black")
+        ],
+        [
+            InlineKeyboardButton("⚪ White", callback_data="white"),
+            InlineKeyboardButton("🌈 Gradient", callback_data="gradient")
+        ],
+        [
+            InlineKeyboardButton("🪄 Transparent", callback_data="transparent")
+        ]
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        "Pilih background:",
+        reply_markup=reply_markup
+    )
+
+# ============================================
+# BUTTON CLICK
+# ============================================
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    query = update.callback_query
+
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    mode = query.data
+
+    if user_id not in user_images:
+        await query.message.reply_text("Upload foto dulu.")
+        return
+
+    input_path = user_images[user_id]
+
+    await query.message.reply_text("⏳ Processing HD AI...")
+
+    try:
+
+        foreground = remove_background_hd(input_path)
+
+        final = build_final_image(foreground, mode)
+
+        # OPTIONAL STOCK STYLE
+        final = add_stock_text(final, "STRONG BUY")
+
+        output_path = os.path.join(
+            TEMP_FOLDER,
+            f"output_{uuid.uuid4()}.png"
+        )
+
+        final.save(output_path, quality=100)
+
+        await query.message.reply_photo(
+            photo=open(output_path, "rb")
+        )
+
+    except Exception as e:
+        await query.message.reply_text(f"ERROR: {e}")
+
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Contoh: /scan BBCA")
@@ -1344,6 +1585,16 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
 
+     app.add_handler(
+        MessageHandler(
+            filters.PHOTO,
+            photo_handler
+        )
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(button_handler)
+    )
     app.add_handler(CommandHandler("menu", menu))
     app.add_handler(CommandHandler("scan", scan))
     app.add_handler(CommandHandler("scanall", scanall))
