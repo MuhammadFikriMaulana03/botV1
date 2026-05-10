@@ -1585,7 +1585,7 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
 
-     app.add_handler(
+    app.add_handler(
         MessageHandler(
             filters.PHOTO,
             photo_handler
