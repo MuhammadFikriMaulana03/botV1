@@ -61,6 +61,8 @@ TOKEN = "8746301929:AAGJmL-MOMNqT1VG5Jmv5GZ_d6cFuOPba4s"
 
 CACHE = {}
 CACHE_TIME = {}
+
+USER_MODE = {}
 # =========================
 # WATCHLIST
 # =========================
@@ -1172,39 +1174,28 @@ async def rsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(result)
 
+async def bs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user_id = update.effective_user.id
+
+    USER_MODE[user_id] = "broker"
+
+    await update.message.reply_text(
+        "📸 Kirim screenshot broker summary"
+    )
+
 # =========================
 # 🖼️ REMOVE BG COMMAND
 # =========================
 async def remove_bg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    if not update.message.photo:
-        await update.message.reply_text("❌ Kirim foto dulu")
-        return
+    user_id = update.effective_user.id
 
-    await update.message.reply_text("🖼️ Menghapus background...")
+    USER_MODE[user_id] = "removebg"
 
-    photo = update.message.photo[-1]
-
-    file = await context.bot.get_file(photo.file_id)
-
-    path = f"removebg_{update.message.message_id}.jpg"
-
-    await file.download_to_drive(path)
-
-    result_path = await asyncio.to_thread(
-        remove_background_image,
-        path
+    await update.message.reply_text(
+        "🖼️ Kirim foto yang ingin dihapus backgroundnya"
     )
-
-    if result_path is None:
-        await update.message.reply_text("❌ Gagal remove background")
-        return
-
-    with open(result_path, "rb") as img:
-        await update.message.reply_photo(
-            photo=img,
-            caption="✅ Background berhasil dihapus"
-        )
 
 async def broker_summary_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -1401,6 +1392,74 @@ def daily_report_ihsg():
     return text
 
 # =========================
+# 📸 SMART PHOTO HANDLER
+# =========================
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user_id = update.effective_user.id
+
+    mode = USER_MODE.get(user_id)
+
+    if mode is None:
+        await update.message.reply_text(
+            "❌ Gunakan command dulu:\n/removebg atau /bs"
+        )
+        return
+
+    photo = update.message.photo[-1]
+
+    file = await context.bot.get_file(photo.file_id)
+
+    path = f"photo_{update.message.message_id}.jpg"
+
+    await file.download_to_drive(path)
+
+    # =========================
+    # REMOVE BG MODE
+    # =========================
+    if mode == "removebg":
+
+        await update.message.reply_text(
+            "🖼️ Menghapus background..."
+        )
+
+        result_path = await asyncio.to_thread(
+            remove_background_image,
+            path
+        )
+
+        if result_path is None:
+            await update.message.reply_text(
+                "❌ Gagal remove background"
+            )
+            return
+
+        with open(result_path, "rb") as img:
+            await update.message.reply_photo(
+                photo=img,
+                caption="✅ Background berhasil dihapus"
+            )
+
+    # =========================
+    # BROKER MODE
+    # =========================
+    elif mode == "broker":
+
+        await update.message.reply_text(
+            "📸 Membaca Broker Summary..."
+        )
+
+        result = await asyncio.to_thread(
+            analyze_broker_summary,
+            path
+        )
+
+        await update.message.reply_text(result)
+
+    # reset mode
+    USER_MODE.pop(user_id, None)
+
+# =========================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -1414,8 +1473,9 @@ def main():
     app.add_handler(CommandHandler("sndc", sndc))
     app.add_handler(CommandHandler("snr", snr))
     app.add_handler(CommandHandler("rsi", rsi))
-    app.add_handler(MessageHandler(filters.PHOTO, broker_summary_image))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(CommandHandler("removebg", remove_bg))
+    app.add_handler(CommandHandler("bs", bs))
     
 
     print("🚀 Bot KokoKiki Ready")
