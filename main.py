@@ -36,7 +36,7 @@ from ta.trend import SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange, BollingerBands
 
-from PIL import Image
+from PIL import Image, ImageFilter
 from io import BytesIO
 from rembg import remove
 
@@ -1068,38 +1068,75 @@ def snr_scan(symbol):
 """
 
 # =========================
-# 🖼️ REMOVE BG + COLOR BG
+# 🖼️ REMOVE BG PRO
 # =========================
-def remove_background_image(input_path, bg_color=(0, 170, 255)):
+def remove_background_image(input_path, bg_color=(0,170,255)):
 
     try:
 
         # buka gambar
         input_image = Image.open(input_path).convert("RGBA")
 
-        # remove bg
-        output = remove(input_image)
+        # 🔥 upscale dikit biar AI lebih presisi
+        w, h = input_image.size
 
-        # buat background warna
+        upscale = 1.5
+
+        input_image = input_image.resize(
+            (int(w * upscale), int(h * upscale))
+        )
+
+        # =========================
+        # REMOVE BG AI
+        # =========================
+        output = remove(
+            input_image,
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=240,
+            alpha_matting_background_threshold=10,
+            alpha_matting_erode_size=10
+        )
+
+        # =========================
+        # SMOOTH EDGE
+        # =========================
+        alpha = output.getchannel("A")
+
+        alpha = alpha.filter(
+            ImageFilter.GaussianBlur(1.2)
+        )
+
+        output.putalpha(alpha)
+
+        # =========================
+        # BACKGROUND COLOR
+        # =========================
         background = Image.new(
             "RGBA",
             output.size,
             bg_color
         )
 
-        # tempel hasil remove bg
         final = Image.alpha_composite(
             background,
             output
         )
 
-        # convert biar ringan
+        # resize balik
+        final = final.resize((w, h))
+
         final = final.convert("RGB")
 
         # save
-        output_path = input_path.replace(".jpg", "_bg.jpg")
+        output_path = input_path.replace(
+            ".jpg",
+            "_pro.jpg"
+        )
 
-        final.save(output_path, quality=95)
+        final.save(
+            output_path,
+            quality=95
+        )
 
         return output_path
 
