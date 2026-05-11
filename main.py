@@ -1169,18 +1169,26 @@ def risk_reward_calc(symbol, modal):
     ).average_true_range().iloc[-1]
 
     # =========================
-    # SCALPING SL/TP
+    # FIX SCALPING MODE
     # =========================
 
-    volatility = atr / price
+    # SL 2%
+    sl_pct_target = 0.02
 
-    risk_pct = max(0.025, min(volatility, 0.04))
+    # TP 3%
+    tp_pct_target = 0.03
 
-    sl = price * (1 - risk_pct)
+    # =========================
+    # CALC
+    # =========================
+    sl = price * (1 - sl_pct_target)
+
+    tp = price * (1 + tp_pct_target)
 
     risk = price - sl
+    reward = tp - price
 
-    tp = price + (risk * 2)
+    rr = reward / risk if risk != 0 else 0
 
     # =========================
     # LOT CALC
