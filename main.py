@@ -1143,6 +1143,88 @@ def remove_background_image(input_path, bg_color=(0,170,255)):
     except Exception as e:
         print("REMOVE BG ERROR:", e)
         return None
+# =========================
+# 💰 RISK REWARD CALCULATOR
+# =========================
+def risk_reward_calc(symbol, modal):
+
+    df = get_cached(symbol)
+
+    if df is None:
+        return "❌ Data saham tidak tersedia"
+
+    close = S(df["Close"])
+    high = S(df["High"])
+    low = S(df["Low"])
+
+    price = float(close.iloc[-1])
+
+    # =========================
+    # ATR
+    # =========================
+    atr = AverageTrueRange(
+        high,
+        low,
+        close
+    ).average_true_range().iloc[-1]
+
+    # =========================
+    # SL & TP
+    # =========================
+    sl = price - (atr * 1.2)
+
+    risk = price - sl
+
+    tp = price + (risk * 2)
+
+    # =========================
+    # LOT CALC
+    # =========================
+    shares = int(modal / price)
+
+    lot = shares // 100
+
+    shares = lot * 100
+
+    total_buy = shares * price
+
+    # =========================
+    # POTENTIAL
+    # =========================
+    potential_loss = shares * (price - sl)
+
+    potential_profit = shares * (tp - price)
+
+    sl_pct = ((sl - price) / price) * 100
+    tp_pct = ((tp - price) / price) * 100
+
+    return f"""
+📊 {symbol}.JK
+
+💰 Harga Sekarang: {price:.0f}
+💵 Modal: Rp {modal:,.0f}
+
+🧾 Lot: {lot}
+📦 Shares: {shares:,}
+
+💸 Total Buy:
+Rp {total_buy:,.0f}
+
+🛑 Stop Loss:
+{sl:.0f} ({sl_pct:.2f}%)
+
+🎯 Take Profit:
+{tp:.0f} (+{tp_pct:.2f}%)
+
+⚖️ Risk Reward:
+1 : 2
+
+❌ Potensi Loss:
+Rp {potential_loss:,.0f}
+
+🚀 Potensi Profit:
+Rp {potential_profit:,.0f}
+"""
 
 # =========================
 # COMMANDS
@@ -1163,6 +1245,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /rsi 🔥 (RSI Oversold)
 /bs Analyze Broker Summary Image
 /removebg
+/rr KODE MODAL
 """)
 
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1226,6 +1309,40 @@ async def rsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔎 Scanning RSI Oversold...")
 
     result = await asyncio.to_thread(rsi_scan)
+
+    await update.message.reply_text(result)
+
+# =========================
+# 💰 RR COMMAND
+# =========================
+async def rr(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "Contoh:\n/rr ESIP 10000000"
+        )
+        return
+
+    symbol = context.args[0].upper()
+
+    try:
+        modal = int(context.args[1])
+
+    except:
+        await update.message.reply_text(
+            "❌ Modal harus angka"
+        )
+        return
+
+    await update.message.reply_text(
+        "📊 Menghitung Risk Reward..."
+    )
+
+    result = await asyncio.to_thread(
+        risk_reward_calc,
+        symbol,
+        modal
+    )
 
     await update.message.reply_text(result)
 
@@ -1557,6 +1674,7 @@ def main():
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(CommandHandler("removebg", remove_bg))
     app.add_handler(CommandHandler("bs", bs))
+    app.add_handler(CommandHandler("rr", rr))
     
 
     print("🚀 Bot KokoKiki Ready")
