@@ -1230,7 +1230,7 @@ Rp {total_buy:,.0f}
 {tp:.0f} (+{tp_pct:.2f}%)
 
 ⚖️ Risk Reward:
-1 : 2
+1 : {rr:.2f}
 
 ❌ Potensi Loss:
 Rp {potential_loss:,.0f}
