@@ -27,7 +27,6 @@ os.system("pip install --no-cache-dir mplfinance matplotlib")
 os.system("pip install --no-cache-dir python-telegram-bot[job-queue]")
 os.system("pip install --no-cache-dir pytesseract pillow")
 os.system("pip install --no-cache-dir opencv-python-headless")
-os.system("pip install --no-cache-dir rembg onnxruntime")
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
@@ -37,8 +36,6 @@ from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange, BollingerBands
 
 from PIL import Image, ImageFilter
-from io import BytesIO
-from rembg import remove
 
 from telegram import (
     Update
@@ -1068,82 +1065,6 @@ def snr_scan(symbol):
 """
 
 # =========================
-# 🖼️ REMOVE BG PRO
-# =========================
-def remove_background_image(input_path, bg_color=(0,170,255)):
-
-    try:
-
-        # buka gambar
-        input_image = Image.open(input_path).convert("RGBA")
-
-        # 🔥 upscale dikit biar AI lebih presisi
-        w, h = input_image.size
-
-        upscale = 1.5
-
-        input_image = input_image.resize(
-            (int(w * upscale), int(h * upscale))
-        )
-
-        # =========================
-        # REMOVE BG AI
-        # =========================
-        output = remove(
-            input_image,
-            alpha_matting=True,
-            alpha_matting_foreground_threshold=240,
-            alpha_matting_background_threshold=10,
-            alpha_matting_erode_size=10
-        )
-
-        # =========================
-        # SMOOTH EDGE
-        # =========================
-        alpha = output.getchannel("A")
-
-        alpha = alpha.filter(
-            ImageFilter.GaussianBlur(1.2)
-        )
-
-        output.putalpha(alpha)
-
-        # =========================
-        # BACKGROUND COLOR
-        # =========================
-        background = Image.new(
-            "RGBA",
-            output.size,
-            bg_color
-        )
-
-        final = Image.alpha_composite(
-            background,
-            output
-        )
-
-        # resize balik
-        final = final.resize((w, h))
-
-        final = final.convert("RGB")
-
-        # save
-        output_path = input_path.replace(
-            ".jpg",
-            "_pro.jpg"
-        )
-
-        final.save(
-            output_path,
-            quality=95
-        )
-
-        return output_path
-
-    except Exception as e:
-        print("REMOVE BG ERROR:", e)
-        return None
-# =========================
 # 💰 RISK REWARD CALCULATOR
 # =========================
 def risk_reward_calc(symbol, modal):
@@ -1257,7 +1178,6 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /sndc Kode Emiten
 /rsi 🔥 (RSI Oversold)
 /bs Analyze Broker Summary Image
-/removebg
 /rr KODE MODAL
 """)
 
@@ -1369,23 +1289,7 @@ async def bs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📸 Kirim screenshot broker summary"
     )
 
-# =========================
-# 🖼️ REMOVE BG COMMAND
-# =========================
-async def remove_bg(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    user_id = update.effective_user.id
-
-    color = "blue"
-
-    if context.args:
-        color = context.args[0].lower()
-
-    USER_MODE[user_id] = f"removebg_{color}"
-
-    await update.message.reply_text(
-        "🖼️ Kirim foto yang ingin dihapus backgroundnya"
-    )
 
 async def broker_summary_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -1581,76 +1485,6 @@ def daily_report_ihsg():
 
     return text
 
-# =========================
-# 📸 SMART PHOTO HANDLER
-# =========================
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    user_id = update.effective_user.id
-
-    mode = USER_MODE.get(user_id)
-
-    if mode is None:
-        await update.message.reply_text(
-            "❌ Gunakan command dulu:\n/removebg atau /bs"
-        )
-        return
-
-    photo = update.message.photo[-1]
-
-    file = await context.bot.get_file(photo.file_id)
-
-    path = f"photo_{update.message.message_id}.jpg"
-
-    await file.download_to_drive(path)
-
-    # =========================
-    # REMOVE BG MODE
-    # =========================
-    if mode.startswith("removebg"):
-
-        parts = mode.split("_")
-
-        color_name = parts[1] if len(parts) > 1 else "blue"
-
-        # 🔥 TAMBAH DI SINI
-        COLOR_MAP = {
-            "blue": (0,170,255),
-            "red": (255,0,0),
-            "green": (0,255,120),
-            "black": (0,0,0),
-            "white": (255,255,255),
-            "pink": (255,105,180),
-            "gold": (255,215,0),
-        }
-
-        bg_color = COLOR_MAP.get(
-            color_name,
-            (0,170,255)
-        )
-
-        await update.message.reply_text(
-            f"🖼️ Menghapus background ({color_name})..."
-        )
-
-        result_path = await asyncio.to_thread(
-            remove_background_image,
-            path,
-            bg_color
-        )
-
-        if result_path is None:
-            await update.message.reply_text(
-                "❌ Gagal remove background"
-            )
-            return
-
-        with open(result_path, "rb") as img:
-            await update.message.reply_photo(
-                photo=img,
-                caption=f"✅ Background {color_name} berhasil"
-            )
-
     # =========================
     # BROKER MODE
     # =========================
@@ -1685,7 +1519,6 @@ def main():
     app.add_handler(CommandHandler("snr", snr))
     app.add_handler(CommandHandler("rsi", rsi))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    app.add_handler(CommandHandler("removebg", remove_bg))
     app.add_handler(CommandHandler("bs", bs))
     app.add_handler(CommandHandler("rr", rr))
     
