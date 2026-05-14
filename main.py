@@ -61,7 +61,7 @@ executor = ThreadPoolExecutor(max_workers=5)
 warnings.filterwarnings("ignore")
 
 TOKEN = "8746301929:AAGJmL-MOMNqT1VG5Jmv5GZ_d6cFuOPba4s"
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = "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"
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 CACHE = {}
