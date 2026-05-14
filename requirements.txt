@@ -9,4 +9,5 @@ mplfinance
 requests
 pytesseract
 opencv-python-headless
+python-dotenv
 openai
