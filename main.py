@@ -58,7 +58,7 @@ executor = ThreadPoolExecutor(max_workers=5)
 
 warnings.filterwarnings("ignore")
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -1662,7 +1662,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # =========================
 def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("menu", menu))
     app.add_handler(CommandHandler("scan", scan))
