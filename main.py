@@ -20,6 +20,7 @@ import datetime
 import asyncio
 import base64
 from openai import OpenAI
+from dotenv import load_dotenv
 import logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
@@ -53,7 +54,6 @@ from telegram.ext import (
     filters
 )
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
 executor = ThreadPoolExecutor(max_workers=5)
 
