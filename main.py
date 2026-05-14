@@ -1485,23 +1485,39 @@ def daily_report_ihsg():
 
     return text
 
-    # =========================
-    # BROKER MODE
-    # =========================
-    elif mode == "broker":
+# =========================
+# 📸 PHOTO HANDLER
+# =========================
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    user_id = update.effective_user.id
+    mode = USER_MODE.get(user_id)
+
+    if mode != "broker":
         await update.message.reply_text(
-            "📸 Membaca Broker Summary..."
+            "❌ Gunakan command /bs dulu"
         )
+        return
 
-        result = await asyncio.to_thread(
-            analyze_broker_summary,
-            path
-        )
+    photo = update.message.photo[-1]
 
-        await update.message.reply_text(result)
+    file = await context.bot.get_file(photo.file_id)
 
-    # reset mode
+    path = f"broker_{update.message.message_id}.jpg"
+
+    await file.download_to_drive(path)
+
+    await update.message.reply_text(
+        "📸 Membaca Broker Summary..."
+    )
+
+    result = await asyncio.to_thread(
+        analyze_broker_summary,
+        path
+    )
+
+    await update.message.reply_text(result)
+
     USER_MODE.pop(user_id, None)
 
 # =========================
