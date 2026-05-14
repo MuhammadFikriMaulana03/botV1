@@ -20,7 +20,6 @@ import datetime
 import asyncio
 import base64
 from openai import OpenAI
-from dotenv import load_dotenv
 import logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
@@ -32,7 +31,6 @@ os.system("pip install --no-cache-dir pytesseract pillow")
 os.system("pip install --no-cache-dir opencv-python-headless")
 os.system("pip install --no-cache-dir openai")
 os.system("pip install --no-cache-dir python-dotenv")
-load_dotenv()
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
@@ -61,7 +59,7 @@ executor = ThreadPoolExecutor(max_workers=5)
 warnings.filterwarnings("ignore")
 
 TOKEN = "8746301929:AAGJmL-MOMNqT1VG5Jmv5GZ_d6cFuOPba4s"
-OPENAI_API_KEY = os.getenv("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")
+OPENAI_API_KEY = "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"
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 CACHE = {}
