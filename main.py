@@ -18,6 +18,8 @@ import re
 import time
 import datetime
 import asyncio
+import base64
+from openai import OpenAI
 import logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
@@ -27,6 +29,7 @@ os.system("pip install --no-cache-dir mplfinance matplotlib")
 os.system("pip install --no-cache-dir python-telegram-bot[job-queue]")
 os.system("pip install --no-cache-dir pytesseract pillow")
 os.system("pip install --no-cache-dir opencv-python-headless")
+os.system("pip install --no-cache-dir openai")
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
@@ -470,6 +473,112 @@ SL: {sl:.2f} ({sl_pct:+.2f}%)
 TP: {tp:.2f} ({tp_pct:+.2f}%)
 RR: {rr:.2f}
 """
+
+# =========================
+# 🧠 AI CHART SCALPING ANALYZER
+# =========================
+SCALPING_CHART_PROMPT = """
+Kamu adalah AI scalping analyst untuk saham Indonesia.
+
+Analisis screenshot chart yang dikirim user. Fokus pada:
+1. Timeframe chart
+2. Harga terakhir jika terlihat
+3. Trend pendek
+4. Posisi harga terhadap VWAP
+5. EMA 5/13
+6. Volume
+7. RSI
+8. Support dan resistance terdekat
+9. Setup entry scalping
+10. Stop loss dan take profit realistis
+11. Risiko fake breakout / breakdown
+
+Berikan hasil dalam format Telegram yang singkat, praktis, dan tegas.
+
+Gunakan decision hanya salah satu:
+🟢 BUY SETUP
+🟡 WAIT
+🔴 AVOID
+⚠️ HIGH RISK
+
+Jangan menjamin profit.
+Jangan bilang pasti naik/turun.
+Kalau data pada gambar tidak cukup jelas, katakan "data kurang jelas".
+Selalu prioritaskan risk management.
+
+Aturan tambahan:
+- Jangan entry kalau volume kecil dan harga masih sideways.
+- Jangan buy agresif kalau harga di bawah VWAP dan EMA 5 di bawah EMA 13.
+- BUY SETUP hanya boleh kalau ada konfirmasi jelas: harga di atas VWAP, EMA mendukung, RSI sehat, volume masuk, dan ada level entry valid.
+- Kalau belum ada trigger entry, pilih WAIT.
+- Kalau chart sudah naik jauh dekat resistance, pilih HIGH RISK.
+- Kalau support jebol, momentum lemah, dan RSI turun, pilih AVOID.
+- Beri level entry/SL/TP dari area yang terlihat di chart, bukan angka asal.
+- Kalau angka tidak terlihat jelas, tulis "tidak terbaca jelas".
+
+Format jawaban:
+
+📊 AI SCALPING ANALYSIS
+Saham:
+Timeframe:
+Harga:
+
+Decision:
+
+📌 Bacaan Chart:
+•
+
+🎯 Entry Valid:
+•
+
+🛑 Stop Loss:
+•
+
+🚀 Target:
+•
+
+⚠️ Risiko:
+•
+
+Confidence:
+"""
+
+def encode_image_to_base64(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
+
+def analyze_scalping_chart(image_path):
+    try:
+        if not OPENAI_API_KEY:
+            return "❌ OPENAI_API_KEY belum diset di environment variable."
+
+        base64_image = encode_image_to_base64(image_path)
+
+        response = client.responses.create(
+            model="gpt-4.1-mini",
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": SCALPING_CHART_PROMPT
+                        },
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:image/jpeg;base64,{base64_image}"
+                        }
+                    ]
+                }
+            ],
+            max_output_tokens=700
+        )
+
+        return response.output_text
+
+    except Exception as e:
+        return f"❌ Error AI Chart Analyzer:\n{e}"
 
 # =========================
 # SCAN ALL (TIDAK DIUBAH)
@@ -1179,6 +1288,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /rsi 🔥 (RSI Oversold)
 /bs Analyze Broker Summary Image
 /rr KODE MODAL
+/chart Analyze Screenshot Chart Scalping
 """)
 
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1310,8 +1420,22 @@ async def broker_summary_image(update: Update, context: ContextTypes.DEFAULT_TYP
 
     await update.message.reply_text(result)
 
+async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
 
-    
+    USER_MODE[user_id] = "chart"
+
+    await update.message.reply_text(
+        "📸 Kirim screenshot chart scalping Stockbit.\n\n"
+        "Pastikan terlihat:\n"
+        "• kode saham\n"
+        "• timeframe 5M / 15M\n"
+        "• harga terakhir\n"
+        "• VWAP\n"
+        "• EMA 5/13\n"
+        "• Volume\n"
+        "• RSI"
+    )
 
 # =========================
 # 🆕 DAILY REPORT IHSG + MARKET FLOW
@@ -1493,30 +1617,42 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     mode = USER_MODE.get(user_id)
 
-    if mode != "broker":
+    if mode not in ["broker", "chart"]:
         await update.message.reply_text(
-            "❌ Gunakan command /bs dulu"
+            "❌ Pilih mode dulu:\n"
+            "/bs untuk Broker Summary\n"
+            "/chart untuk AI Scalping Chart"
         )
         return
 
     photo = update.message.photo[-1]
-
     file = await context.bot.get_file(photo.file_id)
 
-    path = f"broker_{update.message.message_id}.jpg"
+    if mode == "broker":
+        path = f"broker_{update.message.message_id}.jpg"
+        await file.download_to_drive(path)
 
-    await file.download_to_drive(path)
+        await update.message.reply_text("📸 Membaca Broker Summary...")
 
-    await update.message.reply_text(
-        "📸 Membaca Broker Summary..."
-    )
+        result = await asyncio.to_thread(
+            analyze_broker_summary,
+            path
+        )
 
-    result = await asyncio.to_thread(
-        analyze_broker_summary,
-        path
-    )
+        await update.message.reply_text(result)
 
-    await update.message.reply_text(result)
+    elif mode == "chart":
+        path = f"chart_{update.message.message_id}.jpg"
+        await file.download_to_drive(path)
+
+        await update.message.reply_text("🧠 Menganalisis chart scalping...")
+
+        result = await asyncio.to_thread(
+            analyze_scalping_chart,
+            path
+        )
+
+        await update.message.reply_text(result)
 
     USER_MODE.pop(user_id, None)
 
@@ -1537,6 +1673,7 @@ def main():
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(CommandHandler("bs", bs))
     app.add_handler(CommandHandler("rr", rr))
+    app.add_handler(CommandHandler("chart", chart))
     
 
     print("🚀 Bot KokoKiki Ready")
