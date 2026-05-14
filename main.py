@@ -30,6 +30,8 @@ os.system("pip install --no-cache-dir python-telegram-bot[job-queue]")
 os.system("pip install --no-cache-dir pytesseract pillow")
 os.system("pip install --no-cache-dir opencv-python-headless")
 os.system("pip install --no-cache-dir openai")
+os.system("pip install --no-cache-dir python-dotenv")
+load_dotenv()
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
@@ -51,6 +53,7 @@ from telegram.ext import (
     filters
 )
 from concurrent.futures import ThreadPoolExecutor
+from dotenv import load_dotenv
 
 executor = ThreadPoolExecutor(max_workers=5)
 
@@ -58,6 +61,8 @@ executor = ThreadPoolExecutor(max_workers=5)
 warnings.filterwarnings("ignore")
 
 TOKEN = "8746301929:AAGJmL-MOMNqT1VG5Jmv5GZ_d6cFuOPba4s"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 CACHE = {}
 CACHE_TIME = {}
