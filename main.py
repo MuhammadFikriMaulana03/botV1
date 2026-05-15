@@ -1755,30 +1755,30 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await context.bot.get_file(photo.file_id)
 
     if mode == "broker":
-    path = f"broker_{update.message.message_id}.jpg"
-    await file.download_to_drive(path)
+        path = f"broker_{update.message.message_id}.jpg"
+        await file.download_to_drive(path)
 
-    await update.message.reply_text("📸 Membaca Broker Summary...")
+        await update.message.reply_text("📸 Membaca Broker Summary...")
 
-    result = await asyncio.to_thread(
-        analyze_broker_summary,
-        path
-    )
+        result = await asyncio.to_thread(
+            analyze_broker_summary,
+            path
+        )
 
-    await update.message.reply_text(safe_text(result))
-    
+        await update.message.reply_text(safe_text(result))
+
     elif mode == "chart":
-    path = f"chart_{update.message.message_id}.jpg"
-    await file.download_to_drive(path)
+        path = f"chart_{update.message.message_id}.jpg"
+        await file.download_to_drive(path)
 
-    await update.message.reply_text("🧠 Menganalisis chart scalping via OpenRouter...")
+        await update.message.reply_text("🧠 Menganalisis chart scalping via OpenRouter...")
 
-    result = await asyncio.to_thread(
-        analyze_scalping_chart,
-        path
-    )
+        result = await asyncio.to_thread(
+            analyze_scalping_chart,
+            path
+        )
 
-    await update.message.reply_text(safe_text(result))
+        await update.message.reply_text(safe_text(result))
 
     USER_MODE.pop(user_id, None)
 
