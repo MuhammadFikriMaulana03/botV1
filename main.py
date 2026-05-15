@@ -1690,6 +1690,224 @@ def quick_local_reply(user_text, user_id):
     return None
 
 # =========================
+# 🔥 UNUSUAL STOCK RADAR
+# =========================
+def analyze_unusual_df(symbol, df):
+    try:
+        if df is None or len(df) < 30:
+            return None
+
+        close = pd.Series(df["Close"]).dropna()
+        high = pd.Series(df["High"]).dropna()
+        low = pd.Series(df["Low"]).dropna()
+        volume = pd.Series(df["Volume"]).dropna()
+
+        if len(close) < 30 or len(volume) < 30:
+            return None
+
+        price = float(close.iloc[-1])
+        prev_close = float(close.iloc[-2])
+        today_high = float(high.iloc[-1])
+        today_low = float(low.iloc[-1])
+        today_vol = float(volume.iloc[-1])
+
+        today_value = price * today_vol
+        traded_value_series = close * volume
+
+        avg_vol20 = float(volume.tail(20).mean())
+        std_vol20 = float(volume.tail(20).std()) if float(volume.tail(20).std()) != 0 else 1.0
+        avg_value20 = float(traded_value_series.tail(20).mean()) if float(traded_value_series.tail(20).mean()) != 0 else 1.0
+
+        vol_z = (today_vol - avg_vol20) / std_vol20
+        value_ratio = today_value / avg_value20 if avg_value20 > 0 else 0
+
+        change_pct = ((price - prev_close) / prev_close) * 100 if prev_close > 0 else 0
+
+        prev20_high = float(high.iloc[-21:-1].max())
+        prev10_low = float(low.iloc[-11:-1].min())
+        breakout = price > prev20_high
+        near_breakout = price >= (prev20_high * 0.985)
+
+        day_range = max(today_high - today_low, 1e-9)
+        close_near_high = ((today_high - price) / day_range) <= 0.25
+
+        score = 0
+
+        # Volume anomaly
+        if vol_z >= 3:
+            score += 25
+        elif vol_z >= 2:
+            score += 18
+        elif vol_z >= 1:
+            score += 10
+
+        # Value anomaly
+        if value_ratio >= 3:
+            score += 25
+        elif value_ratio >= 2:
+            score += 18
+        elif value_ratio >= 1.5:
+            score += 10
+
+        # Price action
+        if breakout:
+            score += 20
+        elif near_breakout:
+            score += 12
+
+        if close_near_high:
+            score += 10
+
+        if 1 <= change_pct <= 9:
+            score += 10
+        elif 9 < change_pct <= 15:
+            score += 6
+        elif change_pct < -3:
+            score -= 8
+
+        # Liquidity filter
+        if avg_value20 >= 20_000_000_000:   # 20B
+            score += 10
+        elif avg_value20 >= 5_000_000_000:  # 5B
+            score += 5
+        else:
+            score -= 15
+
+        if score >= 75:
+            signal = "EXTREME FLOW"
+        elif score >= 60:
+            signal = "ACTIVE FLOW"
+        elif score >= 45:
+            signal = "EARLY FLOW"
+        else:
+            signal = "WATCHLIST"
+
+        if breakout:
+            status = "Breakout"
+        elif near_breakout:
+            status = "Near Breakout"
+        elif change_pct > 0 and close_near_high:
+            status = "Momentum Build-Up"
+        else:
+            status = "Monitor"
+
+        return {
+            "symbol": symbol,
+            "price": price,
+            "change_pct": change_pct,
+            "score": round(score, 1),
+            "vol_z": round(vol_z, 2),
+            "value_ratio": round(value_ratio, 2),
+            "today_value": today_value,
+            "avg_value20": avg_value20,
+            "signal": signal,
+            "status": status,
+            "breakout_level": prev20_high,
+            "support_level": prev10_low,
+            "close_near_high": close_near_high
+        }
+
+    except Exception as e:
+        print(f"UNUSUAL ERROR {symbol}: {e}")
+        return None
+
+
+def format_rupiah_short(num):
+    try:
+        num = float(num)
+        if num >= 1_000_000_000_000:
+            return f"Rp{num/1_000_000_000_000:.2f}T"
+        elif num >= 1_000_000_000:
+            return f"Rp{num/1_000_000_000:.2f}B"
+        elif num >= 1_000_000:
+            return f"Rp{num/1_000_000:.2f}M"
+        else:
+            return f"Rp{num:,.0f}"
+    except:
+        return str(num)
+
+
+def unusual_scan(limit=10):
+    scan_list = UNIVERSE if "UNIVERSE" in globals() else BSJP_LIST
+
+    results = []
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        data_list = list(executor.map(fetch_symbol, scan_list))
+
+    for symbol, df in data_list:
+        result = analyze_unusual_df(symbol, df)
+        if not result:
+            continue
+
+        # filter hanya yang cukup menarik
+        if result["score"] >= 45 and result["today_value"] >= 2_000_000_000:
+            results.append(result)
+
+    results.sort(key=lambda x: (x["score"], x["today_value"]), reverse=True)
+
+    if not results:
+        return "❌ Tidak ada saham unusual yang lolos filter saat ini."
+
+    text = "🔥 UNUSUAL STOCK RADAR\n\n"
+
+    for i, r in enumerate(results[:limit], 1):
+        text += (
+            f"{i}. {r['symbol']} — {r['signal']}\n"
+            f"Harga: {r['price']:.0f} ({r['change_pct']:+.2f}%)\n"
+            f"Score: {r['score']}\n"
+            f"Vol Z: {r['vol_z']} | Value Ratio: {r['value_ratio']}x\n"
+            f"Value: {format_rupiah_short(r['today_value'])}\n"
+            f"Status: {r['status']}\n"
+            f"BO Level: {r['breakout_level']:.0f} | Support: {r['support_level']:.0f}\n\n"
+        )
+
+    text += "📌 Fokus: cek orderbook, running trade, dan chart 5M sebelum entry."
+    return text
+
+
+def unusual_single(symbol):
+    symbol = symbol.upper().replace(".JK", "")
+
+    data = fetch_symbol(symbol)
+    if not data or data[1] is None:
+        return f"❌ Data {symbol} tidak ditemukan."
+
+    _, df = data
+    r = analyze_unusual_df(symbol, df)
+
+    if not r:
+        return f"❌ Data {symbol} tidak cukup untuk dianalisis."
+
+    text = (
+        f"🔥 UNUSUAL CHECK — {r['symbol']}\n\n"
+        f"Signal: {r['signal']}\n"
+        f"Harga: {r['price']:.0f} ({r['change_pct']:+.2f}%)\n"
+        f"Score: {r['score']}\n"
+        f"Vol Z: {r['vol_z']}\n"
+        f"Value Ratio: {r['value_ratio']}x\n"
+        f"Today Value: {format_rupiah_short(r['today_value'])}\n"
+        f"Avg Value 20D: {format_rupiah_short(r['avg_value20'])}\n"
+        f"Status: {r['status']}\n"
+        f"Breakout Level: {r['breakout_level']:.0f}\n"
+        f"Support Level: {r['support_level']:.0f}\n"
+        f"Close Near High: {'Ya' if r['close_near_high'] else 'Tidak'}\n\n"
+        f"📌 Interpretasi:\n"
+    )
+
+    if r["signal"] == "EXTREME FLOW":
+        text += "Ada aktivitas sangat kuat. Hati-hati euforia, tunggu konfirmasi chart.\n"
+    elif r["signal"] == "ACTIVE FLOW":
+        text += "Saham sedang aktif dan layak dipantau untuk momentum / breakout.\n"
+    elif r["signal"] == "EARLY FLOW":
+        text += "Mulai ada aliran dana. Cocok jadi watchlist awal.\n"
+    else:
+        text += "Belum cukup kuat. Masih sebatas monitor.\n"
+
+    text += "\n⚠️ Jangan entry hanya karena unusual. Tetap cek VWAP, EMA, volume, orderbook, dan broksum."
+    return text
+
+# =========================
 # COMMANDS
 # =========================
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1703,6 +1921,8 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /idxnews KODE - News resmi IDX/OJK/KSEI
 /corpact KODE - Corporate action
 /hotnews KODE - Hot market-moving news
+/unusual - Radar saham unusual
+/unusual KODE - Check unusual satu saham
 /bsjp Tunggu 7 menit
 /daily Tunggu 7 menit
 /snr Kode Emiten
@@ -2006,6 +2226,28 @@ async def setname(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Kalau ditanya nama, aku akan jawab sebagai {name}."
     )
 
+async def unusual(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.args:
+        symbol = context.args[0].upper()
+
+        await update.message.reply_text(f"🔍 Mengecek unusual signal {symbol}...")
+
+        result = await asyncio.to_thread(
+            unusual_single,
+            symbol
+        )
+
+        await update.message.reply_text(safe_text(result))
+    else:
+        await update.message.reply_text("🔍 Scanning unusual stocks...")
+
+        result = await asyncio.to_thread(
+            unusual_scan,
+            10
+        )
+
+        await update.message.reply_text(safe_text(result))
+
 # =========================
 # 🆕 DAILY REPORT IHSG + MARKET FLOW
 # =========================
@@ -2250,6 +2492,7 @@ def main():
     app.add_handler(CommandHandler("idxnews", idxnews))
     app.add_handler(CommandHandler("corpact", corpact))
     app.add_handler(CommandHandler("hotnews", hotnews))
+    app.add_handler(CommandHandler("unusual", unusual))
     app.add_handler(CommandHandler("bsjp", bsjp))
     app.add_handler(CommandHandler("daily", lambda u, c: u.message.reply_text(daily_report_ihsg())))
     app.add_handler(CommandHandler("snd", snd))
