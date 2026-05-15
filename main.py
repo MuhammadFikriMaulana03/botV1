@@ -1675,6 +1675,28 @@ async def exit_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Kamu bisa pakai command lain seperti /chart, /bs, /scan, /rr."
     )
 
+async def send_streaming_text(message, text, delay=0.08, chunk_words=4):
+    text = safe_text(text)
+
+    words = text.split()
+    shown = ""
+
+    sent = await message.reply_text("💭")
+
+    for i in range(0, len(words), chunk_words):
+        chunk = " ".join(words[i:i + chunk_words])
+        shown += chunk + " "
+
+        try:
+            await sent.edit_text(shown.strip())
+        except Exception:
+            pass
+
+        await asyncio.sleep(delay)
+
+    return sent
+
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     mode = USER_MODE.get(user_id)
@@ -1687,7 +1709,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text or not user_text.strip():
         return
 
-    await update.message.reply_text("💭 Lagi mikir...")
+    thinking_msg = await update.message.reply_text("💭 Lagi mikir...")
 
     result = await asyncio.to_thread(
         ask_openrouter_chat,
@@ -1695,7 +1717,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_text
     )
 
-    await update.message.reply_text(safe_text(result))
+    try:
+        await thinking_msg.delete()
+    except Exception:
+        pass
+
+    await send_streaming_text(
+        update.message,
+        result,
+        delay=0.08,
+        chunk_words=4
+    )
 
 # =========================
 # 🆕 DAILY REPORT IHSG + MARKET FLOW
