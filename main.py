@@ -1686,7 +1686,7 @@ async def exit_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Kamu bisa pakai command lain seperti /chart, /bs, /scan, /rr."
     )
 
-async def send_streaming_text(message, text, delay=0.08, chunk_words=4):
+async def send_streaming_text(message, text, delay=0.05, chunk_words=4):
     text = safe_text(text)
 
     words = text.split()
