@@ -1772,7 +1772,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(local_reply)
         return
 
-    thinking_msg = await update.message.reply_text("💭 Lagi mikir...")
+    thinking_msg = await update.message.reply_text("💭 Lagi ngetik...")
 
     result = await asyncio.to_thread(
         ask_openrouter_chat,
