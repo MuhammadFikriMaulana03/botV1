@@ -64,6 +64,7 @@ CACHE_TIME = {}
 
 USER_MODE = {}
 CHAT_HISTORY = {}
+BOT_AI_NAME = {}
 # =========================
 # WATCHLIST
 # =========================
@@ -72,92 +73,6 @@ WATCHLIST = ["AALI", "ABBA", "ABDA", "ABMM", "ACES", "ACST", "ADES", "ADHI", "AI
 
 BSJP_LIST = WATCHLIST
 
-CHATBOT_SYSTEM_PROMPT = """
-Kamu adalah asisten pribadi untuk trader saham Indonesia.
-Gaya bicara santai, jelas, praktis, dan tidak terlalu kaku.
-
-Kamu bisa membantu:
-- menjelaskan fitur Stockbit
-- analisis saham secara edukatif
-- bantu debugging bot Python
-- bikin strategi scalping/swing
-- bantu roadmap portfolio IT
-- jawab curhat dan planning
-
-Aturan penting:
-- Jangan menjamin profit.
-- Jangan bilang saham pasti naik/turun.
-- Selalu ingatkan risk management kalau bahas trading.
-- Kalau user kirim pertanyaan coding, jawab dengan solusi praktis.
-- Kalau data kurang, minta user kirim screenshot/kode/error.
-- Jawab dalam bahasa Indonesia.
-"""
-
-SCALPING_CHART_PROMPT = """
-Kamu adalah AI scalping analyst untuk saham Indonesia.
-
-Analisis screenshot chart yang dikirim user. Fokus pada:
-1. Timeframe chart
-2. Harga terakhir jika terlihat
-3. Trend pendek
-4. Posisi harga terhadap VWAP
-5. EMA 5/13
-6. Volume
-7. RSI
-8. Support dan resistance terdekat
-9. Setup entry scalping
-10. Stop loss dan take profit realistis
-11. Risiko fake breakout / breakdown
-
-Berikan hasil dalam format Telegram yang singkat, praktis, dan tegas.
-
-Gunakan decision hanya salah satu:
-🟢 BUY SETUP
-🟡 WAIT
-🔴 AVOID
-⚠️ HIGH RISK
-
-Jangan menjamin profit.
-Jangan bilang pasti naik/turun.
-Kalau data pada gambar tidak cukup jelas, katakan "data kurang jelas".
-Selalu prioritaskan risk management.
-
-Aturan tambahan:
-- Jangan entry kalau volume kecil dan harga masih sideways.
-- Jangan buy agresif kalau harga di bawah VWAP dan EMA 5 di bawah EMA 13.
-- BUY SETUP hanya boleh kalau ada konfirmasi jelas: harga di atas VWAP, EMA mendukung, RSI sehat, volume masuk, dan ada level entry valid.
-- Kalau belum ada trigger entry, pilih WAIT.
-- Kalau chart sudah naik jauh dekat resistance, pilih HIGH RISK.
-- Kalau support jebol, momentum lemah, dan RSI turun, pilih AVOID.
-- Beri level entry/SL/TP dari area yang terlihat di chart, bukan angka asal.
-- Kalau angka tidak terlihat jelas, tulis "tidak terbaca jelas".
-
-Format jawaban:
-
-📊 AI SCALPING ANALYSIS
-Saham:
-Timeframe:
-Harga:
-
-Decision:
-
-📌 Bacaan Chart:
-•
-
-🎯 Entry Valid:
-•
-
-🛑 Stop Loss:
-•
-
-🚀 Target:
-•
-
-⚠️ Risiko:
-•
-
-Confidence:
-"""
 # =========================
 # HELPER
 # =========================
@@ -714,6 +629,101 @@ def analyze_scalping_chart(image_path):
 
     except Exception as e:
         return f"❌ Error AI Chart Analyzer OpenRouter:\n{e}"
+
+def get_chatbot_system_prompt(user_id):
+    ai_name = BOT_AI_NAME.get(user_id, "KokoKiki")
+
+    return f"""
+Nama kamu adalah {ai_name}.
+
+Kamu adalah asisten pribadi untuk trader saham Indonesia.
+Gaya bicara santai, jelas, praktis, dan tidak terlalu kaku.
+
+Kalau user bertanya "nama kamu siapa?", jawab bahwa nama kamu adalah {ai_name}.
+Jangan menyebut bahwa kamu model AI kecuali ditanya langsung.
+
+Kamu bisa membantu:
+- menjelaskan fitur Stockbit
+- analisis saham secara edukatif
+- bantu debugging bot Python
+- bikin strategi scalping/swing
+- bantu roadmap portfolio IT
+- jawab curhat dan planning
+
+Aturan penting:
+- Jangan menjamin profit.
+- Jangan bilang saham pasti naik/turun.
+- Selalu ingatkan risk management kalau bahas trading.
+- Kalau user kirim pertanyaan coding, jawab dengan solusi praktis.
+- Kalau data kurang, minta user kirim screenshot/kode/error.
+- Jawab dalam bahasa Indonesia.
+"""
+
+SCALPING_CHART_PROMPT = """
+Kamu adalah AI scalping analyst untuk saham Indonesia.
+
+Analisis screenshot chart yang dikirim user. Fokus pada:
+1. Timeframe chart
+2. Harga terakhir jika terlihat
+3. Trend pendek
+4. Posisi harga terhadap VWAP
+5. EMA 5/13
+6. Volume
+7. RSI
+8. Support dan resistance terdekat
+9. Setup entry scalping
+10. Stop loss dan take profit realistis
+11. Risiko fake breakout / breakdown
+
+Berikan hasil dalam format Telegram yang singkat, praktis, dan tegas.
+
+Gunakan decision hanya salah satu:
+🟢 BUY SETUP
+🟡 WAIT
+🔴 AVOID
+⚠️ HIGH RISK
+
+Jangan menjamin profit.
+Jangan bilang pasti naik/turun.
+Kalau data pada gambar tidak cukup jelas, katakan "data kurang jelas".
+Selalu prioritaskan risk management.
+
+Aturan tambahan:
+- Jangan entry kalau volume kecil dan harga masih sideways.
+- Jangan buy agresif kalau harga di bawah VWAP dan EMA 5 di bawah EMA 13.
+- BUY SETUP hanya boleh kalau ada konfirmasi jelas: harga di atas VWAP, EMA mendukung, RSI sehat, volume masuk, dan ada level entry valid.
+- Kalau belum ada trigger entry, pilih WAIT.
+- Kalau chart sudah naik jauh dekat resistance, pilih HIGH RISK.
+- Kalau support jebol, momentum lemah, dan RSI turun, pilih AVOID.
+- Beri level entry/SL/TP dari area yang terlihat di chart, bukan angka asal.
+- Kalau angka tidak terlihat jelas, tulis "tidak terbaca jelas".
+
+Format jawaban:
+
+📊 AI SCALPING ANALYSIS
+Saham:
+Timeframe:
+Harga:
+
+Decision:
+
+📌 Bacaan Chart:
+•
+
+🎯 Entry Valid:
+•
+
+🛑 Stop Loss:
+•
+
+🚀 Target:
+•
+
+⚠️ Risiko:
+•
+
+Confidence:
+"""
 
 # =========================
 # SCAN ALL (TIDAK DIUBAH)
@@ -1424,7 +1434,7 @@ def ask_openrouter_chat(user_id, user_text):
         messages = [
             {
                 "role": "system",
-                "content": CHATBOT_SYSTEM_PROMPT
+                "content": get_chatbot_system_prompt(user_id)
             }
         ]
 
@@ -1504,6 +1514,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /rr KODE MODAL
 /chart Analyze Screenshot Chart Scalping
 /chat Ngobrol dengan AI
+/setname NamaAI - Ubah nama AI chat
 /exit Keluar dari mode chat
 """)
 
@@ -1727,6 +1738,30 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result,
         delay=0.08,
         chunk_words=4
+    )
+
+async def setname(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if not context.args:
+        await update.message.reply_text(
+            "Contoh:\n/setname KokoKiki"
+        )
+        return
+
+    name = " ".join(context.args).strip()
+
+    if len(name) > 30:
+        await update.message.reply_text(
+            "❌ Nama terlalu panjang. Maksimal 30 karakter."
+        )
+        return
+
+    BOT_AI_NAME[user_id] = name
+
+    await update.message.reply_text(
+        f"✅ Nama AI sekarang: {name}\n\n"
+        f"Kalau ditanya nama, aku akan jawab sebagai {name}."
     )
 
 # =========================
@@ -1983,6 +2018,7 @@ def main():
     app.add_handler(CommandHandler("chat", chat))
     app.add_handler(CommandHandler("exit", exit_mode))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.add_handler(CommandHandler("setname", setname))
     
 
     print("🚀 Bot KokoKiki Ready")
