@@ -63,6 +63,7 @@ CACHE = {}
 CACHE_TIME = {}
 
 USER_MODE = {}
+CHAT_HISTORY = {}
 # =========================
 # WATCHLIST
 # =========================
@@ -70,6 +71,28 @@ WATCHLIST = ["AALI", "ABBA", "ABDA", "ABMM", "ACES", "ACST", "ADES", "ADHI", "AI
 ]
 
 BSJP_LIST = WATCHLIST
+
+CHATBOT_SYSTEM_PROMPT = """
+Kamu adalah asisten pribadi untuk trader saham Indonesia.
+Gaya bicara santai, jelas, praktis, dan tidak terlalu kaku.
+
+Kamu bisa membantu:
+- menjelaskan fitur Stockbit
+- analisis saham secara edukatif
+- bantu debugging bot Python
+- bikin strategi scalping/swing
+- bantu roadmap portfolio IT
+- jawab curhat dan planning
+
+Aturan penting:
+- Jangan menjamin profit.
+- Jangan bilang saham pasti naik/turun.
+- Selalu ingatkan risk management kalau bahas trading.
+- Kalau user kirim pertanyaan coding, jawab dengan solusi praktis.
+- Kalau data kurang, minta user kirim screenshot/kode/error.
+- Jawab dalam bahasa Indonesia.
+"""
+
 SCALPING_CHART_PROMPT = """
 Kamu adalah AI scalping analyst untuk saham Indonesia.
 
@@ -1381,6 +1404,85 @@ Rp {potential_loss:,.0f}
 Rp {potential_profit:,.0f}
 """
 
+def ask_openrouter_chat(user_id, user_text):
+    try:
+        if not OPENROUTER_API_KEY:
+            return "❌ OPENROUTER_API_KEY belum diset di Railway Variables."
+
+        url = "https://openrouter.ai/api/v1/chat/completions"
+
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/fikrimaul0311",
+            "X-Title": "Stockbit Chat Bot"
+        }
+
+        # ambil history user, maksimal 8 percakapan terakhir biar hemat token
+        history = CHAT_HISTORY.get(user_id, [])
+
+        messages = [
+            {
+                "role": "system",
+                "content": CHATBOT_SYSTEM_PROMPT
+            }
+        ]
+
+        messages.extend(history[-8:])
+
+        messages.append({
+            "role": "user",
+            "content": user_text
+        })
+
+        payload = {
+            "model": "openrouter/free",
+            "messages": messages,
+            "max_tokens": 900,
+            "temperature": 0.7
+        }
+
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+
+        if response.status_code != 200:
+            return f"❌ Error OpenRouter:\n{response.status_code}\n{response.text[:1000]}"
+
+        data = response.json()
+
+        content = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+
+        if not content or not str(content).strip():
+            return "❌ AI tidak mengembalikan jawaban. Coba ulangi pertanyaan atau ganti model."
+
+        answer = str(content).strip()
+
+        # simpan history
+        history.append({
+            "role": "user",
+            "content": user_text
+        })
+
+        history.append({
+            "role": "assistant",
+            "content": answer
+        })
+
+        CHAT_HISTORY[user_id] = history[-10:]
+
+        return answer
+
+    except Exception as e:
+        return f"❌ Error Chat AI:\n{e}"
+
 # =========================
 # COMMANDS
 # =========================
@@ -1401,6 +1503,8 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /bs Analyze Broker Summary Image
 /rr KODE MODAL
 /chart Analyze Screenshot Chart Scalping
+/chat Ngobrol dengan AI
+/exit Keluar dari mode chat
 """)
 
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1548,6 +1652,50 @@ async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Volume\n"
         "• RSI"
     )
+
+async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    USER_MODE[user_id] = "chat"
+
+    await update.message.reply_text(
+        "💬 Mode chat aktif.\n\n"
+        "Sekarang kamu bisa ngobrol bebas sama AI.\n"
+        "Ketik /exit untuk keluar dari mode chat."
+    )
+
+async def exit_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    USER_MODE.pop(user_id, None)
+    CHAT_HISTORY.pop(user_id, None)
+
+    await update.message.reply_text(
+        "✅ Mode chat dimatikan.\n"
+        "Kamu bisa pakai command lain seperti /chart, /bs, /scan, /rr."
+    )
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    mode = USER_MODE.get(user_id)
+
+    if mode != "chat":
+        return
+
+    user_text = update.message.text
+
+    if not user_text or not user_text.strip():
+        return
+
+    await update.message.reply_text("💭 Lagi mikir...")
+
+    result = await asyncio.to_thread(
+        ask_openrouter_chat,
+        user_id,
+        user_text
+    )
+
+    await update.message.reply_text(safe_text(result))
 
 # =========================
 # 🆕 DAILY REPORT IHSG + MARKET FLOW
@@ -1800,6 +1948,9 @@ def main():
     app.add_handler(CommandHandler("bs", bs))
     app.add_handler(CommandHandler("rr", rr))
     app.add_handler(CommandHandler("chart", chart))
+    app.add_handler(CommandHandler("chat", chat))
+    app.add_handler(CommandHandler("exit", exit_mode))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     
 
     print("🚀 Bot KokoKiki Ready")
