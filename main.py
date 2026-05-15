@@ -794,6 +794,155 @@ def get_news(symbol=None):
         return f"❌ Error news: {e}"
 
 # =========================
+# 📰 ADVANCED NEWS 3 LAYERS
+# =========================
+NEWS_KEYWORDS_HOT = [
+    "akuisisi", "merger", "dividen", "right issue", "rights issue",
+    "private placement", "stock split", "buyback", "suspensi",
+    "UMA", "laba", "rugi", "kontrak", "ekspansi", "pinjaman",
+    "utang", "obligasi", "default", "gagal bayar", "MSCI", "FTSE",
+    "IPO", "RUPS", "cum date", "ex date"
+]
+
+def fetch_google_news_rss(query, limit=5):
+    try:
+        encoded_query = urllib.parse.quote(query)
+        url = (
+            f"https://news.google.com/rss/search?"
+            f"q={encoded_query}&hl=id&gl=ID&ceid=ID:id"
+        )
+
+        res = requests.get(url, timeout=10)
+        root = ET.fromstring(res.content)
+
+        items = root.findall(".//item")
+
+        results = []
+
+        for item in items[:limit]:
+            title_el = item.find("title")
+            link_el = item.find("link")
+            pub_el = item.find("pubDate")
+            source_el = item.find("source")
+
+            title = title_el.text if title_el is not None else "-"
+            link = link_el.text if link_el is not None else "-"
+            pub_date = pub_el.text if pub_el is not None else "-"
+            source = source_el.text if source_el is not None else "Unknown"
+
+            results.append({
+                "title": title,
+                "link": link,
+                "pub_date": pub_date,
+                "source": source
+            })
+
+        return results
+
+    except Exception as e:
+        print("RSS ERROR:", e)
+        return []
+
+
+def format_news_output(title, query, items):
+    if not items:
+        return f"❌ Tidak ada news ditemukan.\nQuery: {query}"
+
+    text = f"{title}\n"
+    text += f"🔎 Query: {query}\n"
+    text += "━━━━━━━━━━━━━━\n\n"
+
+    for i, item in enumerate(items, 1):
+        text += (
+            f"{i}. {item['title']}\n"
+            f"🏷️ Source: {item['source']}\n"
+            f"🕒 {item['pub_date']}\n"
+            f"{item['link']}\n\n"
+        )
+
+    return text[:3900]
+
+def get_idx_news(symbol=None):
+    if symbol:
+        query = (
+            f'{symbol} saham IDX OR BEI OR "Keterbukaan Informasi" '
+            f'OR IDXNet OR OJK OR KSEI'
+        )
+    else:
+        query = (
+            '"Keterbukaan Informasi" OR IDXNet OR BEI OR IDX '
+            'OR OJK OR KSEI saham'
+        )
+
+    items = fetch_google_news_rss(query, limit=7)
+
+    return format_news_output(
+        "🏛️ IDX / REGULATOR NEWS",
+        query,
+        items
+    )
+
+def get_corp_action_news(symbol=None):
+    if symbol:
+        query = (
+            f'{symbol} dividen OR "cum date" OR "ex date" OR RUPS '
+            f'OR "right issue" OR "rights issue" OR "stock split" '
+            f'OR buyback OR waran OR KSEI OR IDX'
+        )
+    else:
+        query = (
+            'dividen OR "cum date" OR "ex date" OR RUPS '
+            'OR "right issue" OR "rights issue" OR "stock split" '
+            'OR buyback OR waran KSEI IDX saham'
+        )
+
+    items = fetch_google_news_rss(query, limit=7)
+
+    return format_news_output(
+        "📌 CORPORATE ACTION NEWS",
+        query,
+        items
+    )
+
+def get_hot_news(symbol=None):
+    if symbol:
+        keyword_query = " OR ".join([f'"{k}"' for k in NEWS_KEYWORDS_HOT])
+        query = f'{symbol} saham Indonesia ({keyword_query})'
+    else:
+        keyword_query = " OR ".join([f'"{k}"' for k in NEWS_KEYWORDS_HOT])
+        query = f'saham Indonesia ({keyword_query})'
+
+    items = fetch_google_news_rss(query, limit=10)
+
+    # scoring sederhana berdasarkan keyword penting di title
+    scored = []
+
+    for item in items:
+        title_lower = item["title"].lower()
+        score = 0
+
+        for kw in NEWS_KEYWORDS_HOT:
+            if kw.lower() in title_lower:
+                score += 1
+
+        # source tertentu sering cepat untuk market
+        source_lower = item["source"].lower()
+        if any(src in source_lower for src in ["kontan", "bisnis", "cnbc", "idx", "reuters"]):
+            score += 1
+
+        scored.append((score, item))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    sorted_items = [x[1] for x in scored]
+
+    return format_news_output(
+        "🔥 HOT MARKET NEWS",
+        query,
+        sorted_items
+    )
+
+# =========================
 # 🧠 BROKER SUMMARY ANALYZER
 # =========================
 def analyze_broker_summary(image_path):
@@ -1551,6 +1700,9 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /scan Kode Emiten
 /news
 /news Kode Emiten
+/idxnews KODE - News resmi IDX/OJK/KSEI
+/corpact KODE - Corporate action
+/hotnews KODE - Hot market-moving news
 /bsjp Tunggu 7 menit
 /daily Tunggu 7 menit
 /snr Kode Emiten
@@ -1577,6 +1729,44 @@ async def scanall(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     symbol = context.args[0].upper() if context.args else None
     await update.message.reply_text(get_news(symbol))
+
+async def idxnews(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    symbol = context.args[0].upper() if context.args else None
+
+    await update.message.reply_text("🏛️ Mencari IDX / regulator news...")
+
+    result = await asyncio.to_thread(
+        get_idx_news,
+        symbol
+    )
+
+    await update.message.reply_text(safe_text(result))
+
+
+async def corpact(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    symbol = context.args[0].upper() if context.args else None
+
+    await update.message.reply_text("📌 Mencari corporate action news...")
+
+    result = await asyncio.to_thread(
+        get_corp_action_news,
+        symbol
+    )
+
+    await update.message.reply_text(safe_text(result))
+
+
+async def hotnews(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    symbol = context.args[0].upper() if context.args else None
+
+    await update.message.reply_text("🔥 Mencari hot market news...")
+
+    result = await asyncio.to_thread(
+        get_hot_news,
+        symbol
+    )
+
+    await update.message.reply_text(safe_text(result))
 
 async def bsjp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔎 Scanning BSJP 7 menit... jalan di background")
@@ -2057,6 +2247,9 @@ def main():
     app.add_handler(CommandHandler("scan", scan))
     app.add_handler(CommandHandler("scanall", scanall))
     app.add_handler(CommandHandler("news", news))
+    app.add_handler(CommandHandler("idxnews", idxnews))
+    app.add_handler(CommandHandler("corpact", corpact))
+    app.add_handler(CommandHandler("hotnews", hotnews))
     app.add_handler(CommandHandler("bsjp", bsjp))
     app.add_handler(CommandHandler("daily", lambda u, c: u.message.reply_text(daily_report_ihsg())))
     app.add_handler(CommandHandler("snd", snd))
