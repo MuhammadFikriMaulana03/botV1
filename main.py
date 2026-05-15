@@ -794,6 +794,28 @@ def get_news(symbol=None):
         return f"❌ Error news: {e}"
 
 # =========================
+# 🧠 NEWS SENTIMENT KEYWORDS
+# =========================
+POSITIVE_NEWS_KEYWORDS = [
+    "dividen", "laba naik", "laba bersih naik", "pendapatan naik",
+    "kontrak", "akuisisi", "ekspansi", "buyback", "stock split",
+    "kerja sama", "kemitraan", "msci", "ftse", "target harga naik",
+    "rekomendasi beli", "right issue sukses", "penjualan naik"
+]
+
+NEGATIVE_NEWS_KEYWORDS = [
+    "rugi", "rugi bersih", "laba turun", "pendapatan turun",
+    "suspensi", "uma", "gagal bayar", "default", "utang",
+    "pailit", "pkpu", "sanksi", "denda", "penurunan",
+    "private placement diskon", "right issue jumbo"
+]
+
+SPECULATIVE_NEWS_KEYWORDS = [
+    "rumor", "dikabarkan", "kabarnya", "beredar", "spekulasi",
+    "masuk radar", "diburu", "terbang", "melambung", "meroket"
+]
+
+# =========================
 # 📰 ADVANCED NEWS 3 LAYERS
 # =========================
 NEWS_KEYWORDS_HOT = [
@@ -2065,6 +2087,143 @@ def get_idx_disclosure(symbol=None):
     except Exception as e:
         return f"❌ Error IDX Disclosure:\n{e}"
 
+def analyze_news_sentiment(items):
+    pos = 0
+    neg = 0
+    spec = 0
+    reasons = []
+
+    for item in items:
+        title = item.get("title", "").lower()
+
+        for kw in POSITIVE_NEWS_KEYWORDS:
+            if kw in title:
+                pos += 1
+                reasons.append(f"+ {kw}")
+
+        for kw in NEGATIVE_NEWS_KEYWORDS:
+            if kw in title:
+                neg += 1
+                reasons.append(f"- {kw}")
+
+        for kw in SPECULATIVE_NEWS_KEYWORDS:
+            if kw in title:
+                spec += 1
+                reasons.append(f"? {kw}")
+
+    if neg > pos and neg >= 1:
+        sentiment = "🔴 Negative"
+    elif pos > neg and pos >= 1:
+        sentiment = "🟢 Positive"
+    elif spec >= 1:
+        sentiment = "🟠 Speculative"
+    else:
+        sentiment = "⚪ Neutral"
+
+    # biar tidak kepanjangan
+    reasons = list(dict.fromkeys(reasons))[:4]
+
+    return sentiment, reasons
+
+def get_symbol_hot_news_items(symbol, limit=3):
+    symbol = symbol.upper().replace(".JK", "")
+
+    keyword_query = (
+        '"akuisisi" OR "dividen" OR "right issue" OR "stock split" '
+        'OR "buyback" OR "suspensi" OR "UMA" OR "laba" OR "rugi" '
+        'OR "kontrak" OR "ekspansi" OR "MSCI" OR "FTSE" OR "private placement"'
+    )
+
+    query = f'{symbol} saham Indonesia ({keyword_query})'
+
+    return fetch_google_news_rss(query, limit=limit)
+
+def get_symbol_disclosure_summary(symbol):
+    symbol = symbol.upper().replace(".JK", "")
+
+    query = (
+        f'{symbol} '
+        f'("Keterbukaan Informasi" OR "Laporan Informasi atau Fakta Material" '
+        f'OR "Pengumuman" OR "IDXNet" OR "BEI") '
+        f'site:idx.co.id'
+    )
+
+    items = fetch_google_news_rss(query, limit=3)
+
+    if not items:
+        return {
+            "status": "⚪ Tidak ada disclosure terdeteksi",
+            "items": []
+        }
+
+    return {
+        "status": "🏛️ Ada disclosure / pengumuman IDX",
+        "items": items
+    }
+
+# =========================
+# 🔥 UNUSUAL + DISCLOSURE + NEWS SENTIMENT COMBO
+# =========================
+def unusual_disclosure_news_radar(limit=5):
+    scan_list = UNIVERSE if "UNIVERSE" in globals() else BSJP_LIST
+
+    results = []
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        data_list = list(executor.map(fetch_symbol, scan_list))
+
+    for symbol, df in data_list:
+        r = analyze_unusual_df(symbol, df)
+
+        if not r:
+            continue
+
+        if r["score"] >= 45 and r["today_value"] >= 2_000_000_000:
+            results.append(r)
+
+    results.sort(key=lambda x: (x["score"], x["today_value"]), reverse=True)
+
+    if not results:
+        return "❌ Tidak ada unusual stock yang lolos filter saat ini."
+
+    text = "🔥 UNUSUAL + NEWS RADAR\n"
+    text += "━━━━━━━━━━━━━━\n\n"
+
+    for i, r in enumerate(results[:limit], 1):
+        symbol = r["symbol"]
+
+        disclosure = get_symbol_disclosure_summary(symbol)
+        news_items = get_symbol_hot_news_items(symbol, limit=3)
+        sentiment, reasons = analyze_news_sentiment(news_items)
+
+        text += (
+            f"{i}. {symbol} — {r['signal']}\n"
+            f"Harga: {r['price']:.0f} ({r['change_pct']:+.2f}%)\n"
+            f"Score: {r['score']} | Vol Z: {r['vol_z']} | Value: {format_rupiah_short(r['today_value'])}\n"
+            f"Status: {r['status']}\n"
+            f"BO: {r['breakout_level']:.0f} | Support: {r['support_level']:.0f}\n\n"
+            f"🏛️ Disclosure: {disclosure['status']}\n"
+            f"🧠 News Sentiment: {sentiment}\n"
+        )
+
+        if reasons:
+            text += f"Reason: {', '.join(reasons)}\n"
+
+        if news_items:
+            text += "📰 Top News:\n"
+            for item in news_items[:2]:
+                text += f"- {item['title']}\n"
+
+        text += "\n━━━━━━━━━━━━━━\n\n"
+
+    text += (
+        "📌 Cara pakai:\n"
+        "Unusual = alarm awal, bukan sinyal entry.\n"
+        "Validasi lagi pakai /chart, orderbook, running trade, dan broksum."
+    )
+
+    return text[:3900]
+
 # =========================
 # COMMANDS
 # =========================
@@ -2083,6 +2242,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /unusual KODE - Check unusual satu saham
 /idxdisclosure KODE - Cek keterbukaan informasi IDX
 /idxdisclosure - Cek disclosure terbaru IDX
+/radar - Combo unusual + disclosure + news sentiment
 /bsjp Tunggu 7 menit
 /daily Tunggu 7 menit
 /snr Kode Emiten
@@ -2386,6 +2546,18 @@ async def setname(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Kalau ditanya nama, aku akan jawab sebagai {name}."
     )
 
+async def radar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🔥 Scanning unusual + disclosure + news sentiment..."
+    )
+
+    result = await asyncio.to_thread(
+        unusual_disclosure_news_radar,
+        5
+    )
+
+    await update.message.reply_text(safe_text(result))
+
 async def idxdisclosure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     symbol = context.args[0].upper() if context.args else None
 
@@ -2669,6 +2841,7 @@ def main():
     app.add_handler(CommandHandler("hotnews", hotnews))
     app.add_handler(CommandHandler("unusual", unusual))
     app.add_handler(CommandHandler("idxdisclosure", idxdisclosure))
+    app.add_handler(CommandHandler("radar", radar))
     app.add_handler(CommandHandler("bsjp", bsjp))
     app.add_handler(CommandHandler("daily", lambda u, c: u.message.reply_text(daily_report_ihsg())))
     app.add_handler(CommandHandler("snd", snd))
