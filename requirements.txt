@@ -11,3 +11,4 @@ pytesseract
 opencv-python-headless
 python-dotenv
 openai
+google-genai
