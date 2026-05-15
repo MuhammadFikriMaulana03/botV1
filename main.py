@@ -738,6 +738,135 @@ Decision:
 Confidence:
 """
 
+ORDERBOOK_ANALYZER_PROMPT = """
+Kamu adalah AI orderbook analyst untuk saham Indonesia.
+
+Analisis screenshot bid-offer/orderbook yang dikirim user.
+Fokus pada:
+1. Kode saham jika terlihat
+2. Harga terakhir
+3. Persentase naik/turun
+4. Total bid dan total offer
+5. Bid tebal terdekat sebagai support
+6. Offer tebal terdekat sebagai resistance
+7. Area breakout trigger
+8. Area entry agresif
+9. Area entry aman/pullback
+10. Area stop loss / invalidasi
+11. Risiko fake bid wall / fake offer wall
+12. Apakah layak buy watch saat market buka atau harus wait
+
+Gunakan decision hanya salah satu:
+🟢 BUY WATCH
+🟡 WAIT OPEN
+🔴 AVOID
+⚠️ HIGH RISK
+
+Jangan menjamin harga pasti naik.
+Jangan bilang pasti buy.
+Kalau data tidak jelas, tulis data kurang jelas.
+Selalu ingatkan validasi dengan running trade saat market buka.
+
+Format jawaban:
+
+📘 ORDERBOOK QUICK ANALYSIS
+Saham:
+Harga:
+Change:
+
+Decision:
+
+📌 Bacaan Bid Offer:
+•
+
+🧱 Support Bid:
+•
+
+🧱 Resistance Offer:
+•
+
+🎯 Entry Plan:
+•
+
+🛑 Invalidation / Stop Area:
+•
+
+⚠️ Risiko:
+•
+
+Confidence:
+"""
+
+def analyze_orderbook_image(image_path):
+    try:
+        if not OPENROUTER_API_KEY:
+            return "❌ OPENROUTER_API_KEY belum diset di Railway Variables."
+
+        base64_image = encode_image_to_base64(image_path)
+
+        url = "https://openrouter.ai/api/v1/chat/completions"
+
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/fikrimaul0311",
+            "X-Title": "Stockbit Orderbook Bot"
+        }
+
+        payload = {
+            "model": "openrouter/free",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": ORDERBOOK_ANALYZER_PROMPT
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": 700
+        }
+
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+
+        if response.status_code != 200:
+            return f"❌ Error OpenRouter:\n{response.status_code}\n{response.text[:1000]}"
+
+        data = response.json()
+
+        content = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+
+        if isinstance(content, list):
+            content = "\n".join(
+                item.get("text", "") if isinstance(item, dict) else str(item)
+                for item in content
+            )
+
+        if not content or not str(content).strip():
+            return "❌ AI tidak mengembalikan analisis orderbook. Coba kirim screenshot yang lebih jelas."
+
+        return str(content).strip()
+
+    except Exception as e:
+        return f"❌ Error Orderbook Analyzer:\n{e}"
+
 # =========================
 # SCAN ALL (TIDAK DIUBAH)
 # =========================
@@ -2252,6 +2381,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /bs Analyze Broker Summary Image
 /rr KODE MODAL
 /chart Analyze Screenshot Chart Scalping
+/ob Analyze bid-offer/orderbook image
 /chat Ngobrol dengan AI
 /setname NamaAI - Ubah nama AI chat
 /exit Keluar dari mode chat
@@ -2573,6 +2703,21 @@ async def idxdisclosure(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(safe_text(result))
 
+async def ob(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    USER_MODE[user_id] = "orderbook"
+
+    await update.message.reply_text(
+        "📸 Kirim screenshot bid-offer/orderbook Stockbit.\n\n"
+        "Pastikan terlihat:\n"
+        "• kode saham\n"
+        "• harga terakhir\n"
+        "• bid dan offer\n"
+        "• total bid dan total offer\n"
+        "• lot bid/offer"
+    )
+
 async def unusual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
         symbol = context.args[0].upper()
@@ -2789,7 +2934,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     mode = USER_MODE.get(user_id)
 
-    if mode not in ["broker", "chart"]:
+    if mode not in ["broker", "chart", "orderbook"]:
         await update.message.reply_text(
             "❌ Pilih mode dulu:\n"
             "/bs untuk Broker Summary\n"
@@ -2826,6 +2971,19 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(safe_text(result))
 
+    elif mode == "orderbook":
+        path = f"orderbook_{update.message.message_id}.jpg"
+        await file.download_to_drive(path)
+
+        await update.message.reply_text("📘 Menganalisis bid-offer/orderbook...")
+
+        result = await asyncio.to_thread(
+            analyze_orderbook_image,
+            path
+        )
+
+        await update.message.reply_text(safe_text(result))
+
     USER_MODE.pop(user_id, None)
 
 # =========================
@@ -2852,6 +3010,7 @@ def main():
     app.add_handler(CommandHandler("bs", bs))
     app.add_handler(CommandHandler("rr", rr))
     app.add_handler(CommandHandler("chart", chart))
+    app.add_handler(CommandHandler("ob", ob))
     app.add_handler(CommandHandler("chat", chat))
     app.add_handler(CommandHandler("exit", exit_mode))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
