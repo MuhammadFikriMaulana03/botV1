@@ -58,7 +58,7 @@ executor = ThreadPoolExecutor(max_workers=5)
 
 warnings.filterwarnings("ignore")
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
