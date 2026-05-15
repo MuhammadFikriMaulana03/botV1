@@ -689,8 +689,8 @@ def analyze_scalping_chart(image_path):
 
         return str(content).strip()
 
-      except Exception as e:
-            return f"❌ Error AI Chart Analyzer OpenRouter:\n{e}"
+        except Exception as e:
+                 return f"❌ Error AI Chart Analyzer OpenRouter:\n{e}"
 
 # =========================
 # SCAN ALL (TIDAK DIUBAH)
