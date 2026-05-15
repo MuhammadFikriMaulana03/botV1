@@ -662,10 +662,32 @@ def analyze_scalping_chart(image_path):
 
         data = response.json()
 
-        return data["choices"][0]["message"]["content"]
+        print("OPENROUTER RESPONSE:", data)
 
-    except Exception as e:
-        return f"❌ Error AI Chart Analyzer OpenRouter:\n{e}"
+        content = (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+        )
+
+        if isinstance(content, list):
+            content = "\n".join(
+                item.get("text", "") if isinstance(item, dict) else str(item)
+                for item in content
+            )
+
+        if not content or not str(content).strip():
+            return (
+                "❌ AI tidak mengembalikan jawaban.\n\n"
+                "Kemungkinan:\n"
+                "• model gratis OpenRouter sedang penuh\n"
+                "• model tidak support gambar\n"
+                "• response kosong dari provider\n"
+                "• screenshot terlalu besar / kurang jelas\n\n"
+                "Coba ganti model atau kirim screenshot yang lebih jelas."
+            )
+
+        return str(content).strip()
 
 # =========================
 # SCAN ALL (TIDAK DIUBAH)
@@ -1695,7 +1717,21 @@ def daily_report_ihsg():
     text += "\n━━━━━━━━━━━━━━━━━━━━━━\n💡 Insight: " + reason_text
 
     return text
+def safe_text(text):
+    if text is None:
+        return "❌ Hasil kosong dari AI/API."
 
+    text = str(text).strip()
+
+    if not text:
+        return "❌ Hasil analisis kosong. Coba kirim ulang screenshot atau ganti model AI."
+
+    # batas aman Telegram ±4096 karakter
+    if len(text) > 3900:
+        text = text[:3900] + "\n\n⚠️ Output dipotong karena terlalu panjang."
+
+    return text
+    
 # =========================
 # 📸 PHOTO HANDLER
 # =========================
@@ -1716,30 +1752,30 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await context.bot.get_file(photo.file_id)
 
     if mode == "broker":
-        path = f"broker_{update.message.message_id}.jpg"
-        await file.download_to_drive(path)
+    path = f"broker_{update.message.message_id}.jpg"
+    await file.download_to_drive(path)
 
-        await update.message.reply_text("📸 Membaca Broker Summary...")
+    await update.message.reply_text("📸 Membaca Broker Summary...")
 
-        result = await asyncio.to_thread(
-            analyze_broker_summary,
-            path
-        )
+    result = await asyncio.to_thread(
+        analyze_broker_summary,
+        path
+    )
 
-        await update.message.reply_text(result)
-
+    await update.message.reply_text(safe_text(result))
+    
     elif mode == "chart":
-        path = f"chart_{update.message.message_id}.jpg"
-        await file.download_to_drive(path)
+    path = f"chart_{update.message.message_id}.jpg"
+    await file.download_to_drive(path)
 
-        await update.message.reply_text("🧠 Menganalisis chart scalping...")
+    await update.message.reply_text("🧠 Menganalisis chart scalping via OpenRouter...")
 
-        result = await asyncio.to_thread(
-            analyze_scalping_chart,
-            path
-        )
+    result = await asyncio.to_thread(
+        analyze_scalping_chart,
+        path
+    )
 
-        await update.message.reply_text(result)
+    await update.message.reply_text(safe_text(result))
 
     USER_MODE.pop(user_id, None)
 
