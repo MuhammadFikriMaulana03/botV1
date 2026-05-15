@@ -19,9 +19,6 @@ import time
 import datetime
 import asyncio
 import base64
-from openai import OpenAI
-from google import genai
-from google.genai import types
 import logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
@@ -31,7 +28,6 @@ os.system("pip install --no-cache-dir mplfinance matplotlib")
 os.system("pip install --no-cache-dir python-telegram-bot[job-queue]")
 os.system("pip install --no-cache-dir pytesseract pillow")
 os.system("pip install --no-cache-dir opencv-python-headless")
-os.system("pip install --no-cache-dir openai")
 os.system("pip install --no-cache-dir python-dotenv")
 if not os.path.exists("temp"):
     os.makedirs("temp")
@@ -61,8 +57,7 @@ executor = ThreadPoolExecutor(max_workers=5)
 warnings.filterwarnings("ignore")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 CACHE = {}
 CACHE_TIME = {}
@@ -75,7 +70,71 @@ WATCHLIST = ["AALI", "ABBA", "ABDA", "ABMM", "ACES", "ACST", "ADES", "ADHI", "AI
 ]
 
 BSJP_LIST = WATCHLIST
+SCALPING_CHART_PROMPT = """
+Kamu adalah AI scalping analyst untuk saham Indonesia.
 
+Analisis screenshot chart yang dikirim user. Fokus pada:
+1. Timeframe chart
+2. Harga terakhir jika terlihat
+3. Trend pendek
+4. Posisi harga terhadap VWAP
+5. EMA 5/13
+6. Volume
+7. RSI
+8. Support dan resistance terdekat
+9. Setup entry scalping
+10. Stop loss dan take profit realistis
+11. Risiko fake breakout / breakdown
+
+Berikan hasil dalam format Telegram yang singkat, praktis, dan tegas.
+
+Gunakan decision hanya salah satu:
+🟢 BUY SETUP
+🟡 WAIT
+🔴 AVOID
+⚠️ HIGH RISK
+
+Jangan menjamin profit.
+Jangan bilang pasti naik/turun.
+Kalau data pada gambar tidak cukup jelas, katakan "data kurang jelas".
+Selalu prioritaskan risk management.
+
+Aturan tambahan:
+- Jangan entry kalau volume kecil dan harga masih sideways.
+- Jangan buy agresif kalau harga di bawah VWAP dan EMA 5 di bawah EMA 13.
+- BUY SETUP hanya boleh kalau ada konfirmasi jelas: harga di atas VWAP, EMA mendukung, RSI sehat, volume masuk, dan ada level entry valid.
+- Kalau belum ada trigger entry, pilih WAIT.
+- Kalau chart sudah naik jauh dekat resistance, pilih HIGH RISK.
+- Kalau support jebol, momentum lemah, dan RSI turun, pilih AVOID.
+- Beri level entry/SL/TP dari area yang terlihat di chart, bukan angka asal.
+- Kalau angka tidak terlihat jelas, tulis "tidak terbaca jelas".
+
+Format jawaban:
+
+📊 AI SCALPING ANALYSIS
+Saham:
+Timeframe:
+Harga:
+
+Decision:
+
+📌 Bacaan Chart:
+•
+
+🎯 Entry Valid:
+•
+
+🛑 Stop Loss:
+•
+
+🚀 Target:
+•
+
+⚠️ Risiko:
+•
+
+Confidence:
+"""
 # =========================
 # HELPER
 # =========================
@@ -555,27 +614,58 @@ def encode_image_to_base64(image_path):
 
 def analyze_scalping_chart(image_path):
     try:
-        if not GEMINI_API_KEY:
-            return "❌ GEMINI_API_KEY belum diset di environment variable."
+        if not OPENROUTER_API_KEY:
+            return "❌ OPENROUTER_API_KEY belum diset di Railway Variables."
 
-        with open(image_path, "rb") as f:
-            image_bytes = f.read()
+        base64_image = encode_image_to_base64(image_path)
 
-        response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[
-                types.Part.from_bytes(
-                    data=image_bytes,
-                    mime_type="image/jpeg"
-                ),
-                SCALPING_CHART_PROMPT
+        url = "https://openrouter.ai/api/v1/chat/completions"
+
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/fikrimaul0311",
+            "X-Title": "Stockbit Scalping Bot"
+        }
+
+        payload = {
+            "model": "openrouter/free",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": SCALPING_CHART_PROMPT
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
             ],
+            "max_tokens": 700
+        }
+
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=60
         )
 
-        return response.text
+        if response.status_code != 200:
+            return f"❌ Error OpenRouter:\n{response.status_code}\n{response.text[:1000]}"
+
+        data = response.json()
+
+        return data["choices"][0]["message"]["content"]
 
     except Exception as e:
-        return f"❌ Error AI Chart Analyzer Gemini:\n{e}"
+        return f"❌ Error AI Chart Analyzer OpenRouter:\n{e}"
 
 # =========================
 # SCAN ALL (TIDAK DIUBAH)
