@@ -689,7 +689,7 @@ def analyze_scalping_chart(image_path):
 
         return str(content).strip()
 
-except Exception as e:
+    except Exception as e:
         return f"❌ Error AI Chart Analyzer OpenRouter:\n{e}"
 
 # =========================
