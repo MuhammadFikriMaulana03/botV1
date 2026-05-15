@@ -20,6 +20,8 @@ import datetime
 import asyncio
 import base64
 from openai import OpenAI
+from google import genai
+from google.genai import types
 import logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 import os
@@ -59,9 +61,8 @@ executor = ThreadPoolExecutor(max_workers=5)
 warnings.filterwarnings("ignore")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-client = OpenAI(api_key=OPENAI_API_KEY)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 CACHE = {}
 CACHE_TIME = {}
@@ -554,35 +555,27 @@ def encode_image_to_base64(image_path):
 
 def analyze_scalping_chart(image_path):
     try:
-        if not OPENAI_API_KEY:
-            return "❌ OPENAI_API_KEY belum diset di environment variable."
+        if not GEMINI_API_KEY:
+            return "❌ GEMINI_API_KEY belum diset di environment variable."
 
-        base64_image = encode_image_to_base64(image_path)
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
 
-        response = client.responses.create(
-            model="gpt-4.1-mini",
-            input=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": SCALPING_CHART_PROMPT
-                        },
-                        {
-                            "type": "input_image",
-                            "image_url": f"data:image/jpeg;base64,{base64_image}"
-                        }
-                    ]
-                }
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type="image/jpeg"
+                ),
+                SCALPING_CHART_PROMPT
             ],
-            max_output_tokens=700
         )
 
-        return response.output_text
+        return response.text
 
     except Exception as e:
-        return f"❌ Error AI Chart Analyzer:\n{e}"
+        return f"❌ Error AI Chart Analyzer Gemini:\n{e}"
 
 # =========================
 # SCAN ALL (TIDAK DIUBAH)
