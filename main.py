@@ -636,44 +636,40 @@ def get_chatbot_system_prompt(user_id):
     return f"""
 Nama kamu adalah {ai_name}.
 
-Kamu adalah asisten pribadi untuk trader saham Indonesia.
-Gaya bicara santai, jelas, praktis, dan tidak terlalu kaku.
+Kamu adalah asisten AI pribadi yang bisa diajak ngobrol tentang apa saja.
+Jawab dalam bahasa Indonesia yang santai, natural, dan mudah dipahami.
 
-Kalau user bertanya "nama kamu siapa?", jawab bahwa nama kamu adalah {ai_name}.
-Jangan menyebut bahwa kamu model AI kecuali ditanya langsung.
+Kamu bisa membantu user dalam banyak hal:
+- curhat dan masalah hidup
+- trading saham dan Stockbit
+- coding Python dan bot Telegram
+- ide bisnis dan produk digital
+- belajar, portfolio, karier, dan project
+- pertanyaan umum sehari-hari
 
-Kamu bisa membantu:
-- menjelaskan fitur Stockbit
-- analisis saham secara edukatif
-- bantu debugging bot Python
-- bikin strategi scalping/swing
-- bantu roadmap portfolio IT
-- jawab curhat dan planning
+Kalau user bertanya nama kamu, jawab bahwa nama kamu adalah {ai_name}.
+
+Gaya jawaban:
+- Jawab fleksibel sesuai pertanyaan user
+- Jangan terlalu kaku
+- Jangan terlalu panjang kalau user tanya santai
+- Jangan terlalu banyak bullet point
+- Jangan terlalu banyak emoji
+- Jangan terdengar seperti artikel
+- Kalau user curhat, dengarkan dulu dan jawab dengan empati
+- Kalau user tanya coding, berikan solusi teknis yang jelas
+- Kalau user tanya trading, jawab praktis tapi jangan menjamin profit
+- Kalau data kurang jelas, tanya balik dengan singkat
 
 Aturan penting:
-- Jangan menjamin profit.
-- Jangan bilang saham pasti naik/turun.
-- Selalu ingatkan risk management kalau bahas trading.
-- Kalau user kirim pertanyaan coding, jawab dengan solusi praktis.
-- Kalau data kurang, minta user kirim screenshot/kode/error.
-- Jawab dalam bahasa Indonesia.
-Gaya jawaban:
-- Jangan terlalu banyak tanda baca
-- Jangan terlalu banyak emoji
-- Jangan terlalu banyak bullet point atau numbering
-- Jangan jawab terlalu panjang kecuali user minta detail
-- Jangan pakai format seperti artikel
-- Jawab seperti teman ngobrol yang paham konteks
-- Pakai paragraf pendek
-- Maksimal 2 sampai 4 paragraf untuk pertanyaan santai
-- Kalau bahas coding, boleh pakai langkah dan kode
-- Kalau bahas trading, tetap ingatkan risk management secara singkat
+- Jangan bilang saham pasti naik atau pasti turun
 - Jangan menjamin profit
-- Jangan bilang saham pasti naik atau turun
-
-Kalau user curhat, jangan langsung kasih list panjang.
-Dengarkan dulu, validasi perasaannya, lalu beri 1 atau 2 saran praktis.
-
+- Selalu prioritaskan risk management saat membahas trading
+- Jangan mengaku punya data realtime kalau tidak diberikan user
+- Kalau user bilang ingin curhat, jangan langsung kasih solusi panjang
+- Tanggapi dulu perasaannya
+- Tanyakan pelan-pelan apa yang paling berat
+- Jawab seperti teman dekat yang suportif
 """
 
 SCALPING_CHART_PROMPT = """
@@ -1445,7 +1441,6 @@ def ask_openrouter_chat(user_id, user_text):
             "X-Title": "Stockbit Chat Bot"
         }
 
-        # ambil history user, maksimal 8 percakapan terakhir biar hemat token
         history = CHAT_HISTORY.get(user_id, [])
 
         messages = [
@@ -1462,50 +1457,64 @@ def ask_openrouter_chat(user_id, user_text):
             "content": user_text
         })
 
-        payload = {
-            "model": "openrouter/free",
-            "messages": messages,
-            "max_tokens": 900,
-            "temperature": 0.7
-        }
+        models = [
+            "meta-llama/llama-3.1-8b-instruct:free",
+            "mistralai/mistral-7b-instruct:free",
+            "qwen/qwen-2.5-7b-instruct:free",
+            "openrouter/free"
+        ]
 
-        response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=60
+        last_error = None
+
+        for model in models:
+            payload = {
+                "model": model,
+                "messages": messages,
+                "max_tokens": 900,
+                "temperature": 0.75
+            }
+
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+
+            if response.status_code != 200:
+                last_error = f"{response.status_code} {response.text[:500]}"
+                continue
+
+            data = response.json()
+
+            content = (
+                data.get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", "")
+            )
+
+            if content and str(content).strip():
+                answer = str(content).strip()
+
+                history.append({
+                    "role": "user",
+                    "content": user_text
+                })
+
+                history.append({
+                    "role": "assistant",
+                    "content": answer
+                })
+
+                CHAT_HISTORY[user_id] = history[-10:]
+
+                return answer
+
+        return (
+            "❌ AI belum berhasil menjawab.\n"
+            "Kemungkinan model gratis sedang penuh atau membalas kosong.\n"
+            f"Error terakhir: {last_error}"
         )
-
-        if response.status_code != 200:
-            return f"❌ Error OpenRouter:\n{response.status_code}\n{response.text[:1000]}"
-
-        data = response.json()
-
-        content = (
-            data.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
-        )
-
-        if not content or not str(content).strip():
-            return "❌ AI tidak mengembalikan jawaban. Coba ulangi pertanyaan atau ganti model."
-
-        answer = str(content).strip()
-
-        # simpan history
-        history.append({
-            "role": "user",
-            "content": user_text
-        })
-
-        history.append({
-            "role": "assistant",
-            "content": answer
-        })
-
-        CHAT_HISTORY[user_id] = history[-10:]
-
-        return answer
 
     except Exception as e:
         return f"❌ Error Chat AI:\n{e}"
@@ -1694,8 +1703,6 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def exit_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-
-    USER_MODE.pop(user_id, None)
     CHAT_HISTORY.pop(user_id, None)
 
     await update.message.reply_text(
