@@ -1519,6 +1519,27 @@ def ask_openrouter_chat(user_id, user_text):
     except Exception as e:
         return f"❌ Error Chat AI:\n{e}"
 
+def quick_local_reply(user_text, user_id):
+    text = user_text.lower().strip()
+
+    ai_name = BOT_AI_NAME.get(user_id, "KokoKiki")
+
+    greetings = [
+        "hai", "halo", "hallo", "hello", "hi", "p", "ping",
+        "assalamualaikum", "salam", "oy", "woi"
+    ]
+
+    if text in greetings:
+        return f"Haii, aku {ai_name}. Mau bahas apa nih?"
+
+    if text in ["nama kamu siapa", "nama kamu siapa?", "siapa nama kamu", "siapa nama kamu?"]:
+        return f"Nama aku {ai_name}."
+
+    if text in ["makasih", "terima kasih", "thanks", "thank you"]:
+        return "Sama samaa."
+
+    return None
+
 # =========================
 # COMMANDS
 # =========================
@@ -1744,6 +1765,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text or not user_text.strip():
         return
 
+    # Balasan lokal untuk sapaan sederhana biar tidak dilempar ke AI
+    local_reply = quick_local_reply(user_text, user_id)
+
+    if local_reply:
+        await update.message.reply_text(local_reply)
+        return
+
     thinking_msg = await update.message.reply_text("💭 Lagi mikir...")
 
     result = await asyncio.to_thread(
@@ -1760,8 +1788,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_streaming_text(
         update.message,
         result,
-        delay=0.08,
-        chunk_words=4
+        delay=0.06,
+        chunk_words=5
     )
 
 async def setname(update: Update, context: ContextTypes.DEFAULT_TYPE):
