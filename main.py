@@ -804,6 +804,31 @@ NEWS_KEYWORDS_HOT = [
     "IPO", "RUPS", "cum date", "ex date"
 ]
 
+# =========================
+# 🏛️ IDX DISCLOSURE RADAR
+# =========================
+IDX_DISCLOSURE_KEYWORDS = [
+    "keterbukaan informasi",
+    "laporan informasi atau fakta material",
+    "informasi fakta material",
+    "pengumuman",
+    "laporan bulanan registrasi pemegang efek",
+    "laporan tahunan",
+    "laporan keuangan",
+    "dividen",
+    "rups",
+    "right issue",
+    "rights issue",
+    "private placement",
+    "afiliasi",
+    "transaksi material",
+    "perubahan pengurus",
+    "suspensi",
+    "uma",
+    "buyback",
+    "stock split"
+]
+
 def fetch_google_news_rss(query, limit=5):
     try:
         encoded_query = urllib.parse.quote(query)
@@ -1907,6 +1932,139 @@ def unusual_single(symbol):
     text += "\n⚠️ Jangan entry hanya karena unusual. Tetap cek VWAP, EMA, volume, orderbook, dan broksum."
     return text
 
+def score_idx_disclosure_item(item, symbol=None):
+    title = item.get("title", "").lower()
+    link = item.get("link", "").lower()
+    source = item.get("source", "").lower()
+
+    score = 0
+
+    if symbol and symbol.lower() in title:
+        score += 5
+
+    if "idx" in source or "bei" in source:
+        score += 4
+
+    if "idx.co.id" in link:
+        score += 5
+
+    if "staticdata/newsandannouncement" in link:
+        score += 6
+
+    for kw in IDX_DISCLOSURE_KEYWORDS:
+        if kw.lower() in title:
+            score += 2
+
+    hot_words = [
+        "dividen", "right issue", "rights issue", "private placement",
+        "suspensi", "uma", "buyback", "stock split", "transaksi material",
+        "laporan keuangan", "rups", "perubahan pengurus"
+    ]
+
+    for kw in hot_words:
+        if kw in title:
+            score += 3
+
+    return score
+
+
+def classify_idx_disclosure(title):
+    t = title.lower()
+
+    if "dividen" in t or "cum date" in t or "ex date" in t:
+        return "Dividen"
+    if "right issue" in t or "rights issue" in t or "hm etd" in t or "hmetd" in t:
+        return "Right Issue / HMETD"
+    if "private placement" in t or "penambahan modal tanpa hmetd" in t:
+        return "Private Placement"
+    if "rups" in t or "rapat umum pemegang saham" in t:
+        return "RUPS"
+    if "laporan keuangan" in t:
+        return "Laporan Keuangan"
+    if "laporan tahunan" in t or "annual report" in t:
+        return "Laporan Tahunan"
+    if "suspensi" in t:
+        return "Suspensi"
+    if "uma" in t or "unusual market activity" in t:
+        return "UMA"
+    if "buyback" in t or "pembelian kembali" in t:
+        return "Buyback"
+    if "stock split" in t or "pemecahan nilai nominal" in t:
+        return "Stock Split"
+    if "transaksi material" in t or "afiliasi" in t:
+        return "Transaksi Material / Afiliasi"
+    if "fakta material" in t or "keterbukaan informasi" in t:
+        return "Keterbukaan Informasi"
+
+    return "Disclosure"
+
+
+def get_idx_disclosure(symbol=None):
+    try:
+        if symbol:
+            symbol = symbol.upper().replace(".JK", "")
+
+            query = (
+                f'{symbol} '
+                f'("Keterbukaan Informasi" OR "Laporan Informasi atau Fakta Material" '
+                f'OR "Pengumuman" OR "IDXNet" OR "BEI") '
+                f'site:idx.co.id'
+            )
+        else:
+            query = (
+                f'("Keterbukaan Informasi" OR "Laporan Informasi atau Fakta Material" '
+                f'OR "IDXNet" OR "BEI" OR "Pengumuman") '
+                f'site:idx.co.id'
+            )
+
+        items = fetch_google_news_rss(query, limit=15)
+
+        scored = []
+
+        for item in items:
+            score = score_idx_disclosure_item(item, symbol)
+            if score > 0:
+                scored.append((score, item))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        if not scored:
+            return (
+                "❌ Tidak ada IDX disclosure ditemukan.\n\n"
+                f"Query: {query}\n\n"
+                "Coba cek tanpa kode saham atau gunakan /hotnews KODE."
+            )
+
+        text = "🏛️ IDX DISCLOSURE RADAR\n"
+
+        if symbol:
+            text += f"Kode: {symbol}\n"
+
+        text += f"🔎 Query: {query}\n"
+        text += "━━━━━━━━━━━━━━\n\n"
+
+        for i, (score, item) in enumerate(scored[:8], 1):
+            category = classify_idx_disclosure(item["title"])
+
+            text += (
+                f"{i}. [{category}] Score {score}\n"
+                f"{item['title']}\n"
+                f"🏷️ Source: {item['source']}\n"
+                f"🕒 {item['pub_date']}\n"
+                f"{item['link']}\n\n"
+            )
+
+        text += (
+            "📌 Catatan:\n"
+            "Ini radar disclosure berbasis Google News RSS + domain IDX.\n"
+            "Untuk validasi final, tetap buka link IDX/PDF resminya."
+        )
+
+        return text[:3900]
+
+    except Exception as e:
+        return f"❌ Error IDX Disclosure:\n{e}"
+
 # =========================
 # COMMANDS
 # =========================
@@ -1923,6 +2081,8 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /hotnews KODE - Hot market-moving news
 /unusual - Radar saham unusual
 /unusual KODE - Check unusual satu saham
+/idxdisclosure KODE - Cek keterbukaan informasi IDX
+/idxdisclosure - Cek disclosure terbaru IDX
 /bsjp Tunggu 7 menit
 /daily Tunggu 7 menit
 /snr Kode Emiten
@@ -2226,6 +2386,21 @@ async def setname(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Kalau ditanya nama, aku akan jawab sebagai {name}."
     )
 
+async def idxdisclosure(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    symbol = context.args[0].upper() if context.args else None
+
+    if symbol:
+        await update.message.reply_text(f"🏛️ Mencari IDX disclosure {symbol}...")
+    else:
+        await update.message.reply_text("🏛️ Mencari IDX disclosure terbaru...")
+
+    result = await asyncio.to_thread(
+        get_idx_disclosure,
+        symbol
+    )
+
+    await update.message.reply_text(safe_text(result))
+
 async def unusual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
         symbol = context.args[0].upper()
@@ -2493,6 +2668,7 @@ def main():
     app.add_handler(CommandHandler("corpact", corpact))
     app.add_handler(CommandHandler("hotnews", hotnews))
     app.add_handler(CommandHandler("unusual", unusual))
+    app.add_handler(CommandHandler("idxdisclosure", idxdisclosure))
     app.add_handler(CommandHandler("bsjp", bsjp))
     app.add_handler(CommandHandler("daily", lambda u, c: u.message.reply_text(daily_report_ihsg())))
     app.add_handler(CommandHandler("snd", snd))
